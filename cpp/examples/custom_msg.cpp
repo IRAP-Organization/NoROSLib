@@ -5,6 +5,7 @@
 // from the publisher). Here we model geometry_msgs/Pose2D under our own name.
 #include "noros.hpp"
 #include "noros.hpp"
+#include <cstdlib>
 
 struct Pose2D {
   static constexpr const char* TYPE = "noros_demo/Pose2D";
@@ -22,6 +23,11 @@ struct Pose2D {
 };
 
 int main() {
+  // Point noros at the ROS master before init_node (defaults to a local roscore).
+  const char* mu = std::getenv("ROS_MASTER_URI");
+  const char* hn = std::getenv("ROS_HOSTNAME");
+  noros::set_master_uri(mu ? mu : "http://localhost:11311");
+  noros::set_hostname(hn ? hn : "localhost");
   noros::init_node("noros_custom");
   noros::Publisher<Pose2D> pub("/pose2d");
   noros::Rate rate(5);

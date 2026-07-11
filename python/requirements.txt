@@ -1,0 +1,18 @@
+# noros (Python) — runtime requirements
+#
+# There is NOTHING to pip install. noros talks to ROS using only the Python
+# standard library, so this file has no packages in it on purpose.
+#
+# The libraries it actually uses to communicate are all built into CPython 3.6+:
+#
+#   xmlrpc.client / xmlrpc.server   ROS Master + Slave API (XML-RPC)
+#   socket                          TCPROS / UDPROS transports
+#   socketserver                    threaded XML-RPC / slave server
+#   threading                       per-connection publish/subscribe threads
+#   struct                          message (de)serialization on the wire
+#   hashlib                         message md5sum (ROS gentools algorithm)
+#   re, os, sys, time, argparse     supporting stdlib modules
+#
+# All of the above ship with Python — `import noros` needs no third-party
+# packages. (OpenCV / numpy are NOT required; only the optional webcam demo
+# uses OpenCV, and that is a demo, not a dependency of the library.)

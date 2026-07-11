@@ -14,7 +14,11 @@ pip install ./python       # run from the repo root
 pip install -e ./python
 ```
 
-No dependencies — just Python 3.6+.
+**No dependencies — just Python 3.6+.** The ROS communication library is pure
+standard library; `requirements.txt` is intentionally empty and documents that
+you install nothing to talk to ROS. (The `webcam_pub.py` / `ros_image_viewer.py`
+demos are the only examples that want extra packages — OpenCV, and for the
+viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 
 ## Hello, topics
 
@@ -58,6 +62,9 @@ Cross-check with real ROS: `rostopic echo /chatter`, or
 ## All examples (`python/examples/`)
 
 Run any with `python3 python/examples/<name>.py` (a master up, `ROS_MASTER_URI` set).
+Every example calls `noros.set_master_uri(...)` and `noros.set_hostname(...)`
+**before** `init_node` (falling back to `$ROS_MASTER_URI` / `$ROS_HOSTNAME`, else
+a local roscore). The core examples mirror the C++ ones one-for-one.
 
 | File | What it does |
 |---|---|
@@ -85,9 +92,12 @@ noros.init_node("my_node")
 
 ## Messages
 
-Built-ins live in `noros.msg` (`String`, `Int32`, `Twist`, `Image`,
-`PointCloud2`, …). Add your own from `.msg` text — noros derives the md5sum
-(matching `rosmsg md5`) and the wire codec:
+Built-ins live in `noros.msg`, covering **std_msgs, geometry_msgs, sensor_msgs,
+nav_msgs, diagnostic_msgs, trajectory_msgs** and actionlib_msgs — e.g. `String`,
+`Twist`, `Odometry`, `Imu`, `JointState`, `LaserScan`, `DiagnosticArray`,
+`JointTrajectory`, `Path`, `OccupancyGrid`, `NavSatFix`, … (or by full name via
+`msg.get("nav_msgs/Odometry")`); every md5sum matches `rosmsg md5`. Add your own
+from `.msg` text — noros derives the md5sum and wire codec:
 
 ```python
 from noros import define_message

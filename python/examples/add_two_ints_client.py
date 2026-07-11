@@ -18,6 +18,9 @@ AddTwoInts = define_service("rospy_tutorials/AddTwoInts",
 def main():
     a = int(sys.argv[1]) if len(sys.argv) > 1 else 3
     b = int(sys.argv[2]) if len(sys.argv) > 2 else 4
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("add_two_ints_client")
     noros.wait_for_service("/add_two_ints", timeout=5.0)
     add = noros.ServiceProxy("/add_two_ints", AddTwoInts)

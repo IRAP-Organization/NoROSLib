@@ -11,3 +11,7 @@
 #include "noros/std_msgs.hpp"
 #include "noros/geometry_msgs.hpp"
 #include "noros/sensor_msgs.hpp"
+#include "noros/nav_msgs.hpp"
+#include "noros/diagnostic_msgs.hpp"
+#include "noros/trajectory_msgs.hpp"
+#include "noros/actionlib_msgs.hpp"

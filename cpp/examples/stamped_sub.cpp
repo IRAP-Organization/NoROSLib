@@ -2,8 +2,14 @@
 //   ./stamped_sub        (with a roscore + ./stamped_pub running)
 #include "noros.hpp"
 #include "sensor_reading.hpp"
+#include <cstdlib>
 
 int main() {
+  // Point noros at the ROS master before init_node (defaults to a local roscore).
+  const char* mu = std::getenv("ROS_MASTER_URI");
+  const char* hn = std::getenv("ROS_HOSTNAME");
+  noros::set_master_uri(mu ? mu : "http://localhost:11311");
+  noros::set_hostname(hn ? hn : "localhost");
   noros::init_node("stamped_sub");
   noros::Subscriber<SensorReading> sub("/sensor_reading", [](const SensorReading& m) {
     char buf[256];

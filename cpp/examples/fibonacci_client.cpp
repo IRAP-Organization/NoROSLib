@@ -4,9 +4,15 @@
 #include "noros.hpp"
 #include "fibonacci_action.hpp"
 #include <cstdio>
+#include <cstdlib>
 
 int main(int argc, char** argv) {
   int order = argc > 1 ? std::atoi(argv[1]) : 8;
+  // Point noros at the ROS master before init_node (defaults to a local roscore).
+  const char* mu = std::getenv("ROS_MASTER_URI");
+  const char* hn = std::getenv("ROS_HOSTNAME");
+  noros::set_master_uri(mu ? mu : "http://localhost:11311");
+  noros::set_hostname(hn ? hn : "localhost");
   noros::init_node("noros_fib_client");
   noros::SimpleActionClient<fib::Fibonacci> client("/fibonacci");
   noros::loginfo("waiting for action server...");

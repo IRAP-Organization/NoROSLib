@@ -9,8 +9,14 @@
 //   rostopic pub -r 5 /disc std_msgs/String "data: real ros here"
 //   ./md5_discovery
 #include "noros.hpp"
+#include <cstdlib>
 
 int main() {
+  // Point noros at the ROS master before init_node (defaults to a local roscore).
+  const char* mu = std::getenv("ROS_MASTER_URI");
+  const char* hn = std::getenv("ROS_HOSTNAME");
+  noros::set_master_uri(mu ? mu : "http://localhost:11311");
+  noros::set_hostname(hn ? hn : "localhost");
   noros::init_node("noros_md5_discovery");
   const char* WRONG_MD5 = "00000000000000000000000000000000";
   noros::logwarn(std::string("subscribing to /disc with a deliberately WRONG md5: ") + WRONG_MD5);

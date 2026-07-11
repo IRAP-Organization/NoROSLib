@@ -25,6 +25,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CPP, "include", "noros.
 
 # platform.hpp is handled specially (emitted verbatim, first); not in this list.
 HEADERS = ["message", "std_msgs", "geometry_msgs", "sensor_msgs",
+           "nav_msgs", "diagnostic_msgs", "trajectory_msgs",
            "actionlib_msgs", "std_srvs", "net_util", "xmlrpc", "tcpros",
            "udpros", "xmlrpc_client", "xmlrpc_server", "node", "actionlib"]
 SOURCES = ["net_util", "xmlrpc", "tcpros", "udpros", "xmlrpc_client",

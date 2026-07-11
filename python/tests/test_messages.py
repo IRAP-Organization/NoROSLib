@@ -137,6 +137,60 @@ def test_bare_header_md5():
     assert m2.pose.orientation.w == 1.0
 
 
+def test_extended_catalog_md5():
+    # nav_msgs / diagnostic_msgs / trajectory_msgs + the geometry/sensor types
+    # they build on -- every md5 must match `rosmsg md5`.
+    from noros import msg
+    expect = {
+        "geometry_msgs/Transform": "ac9eff44abf714214112b05d54a3cf9b",
+        "geometry_msgs/TransformStamped": "b5764a33bfeb3588febc2682852579b0",
+        "geometry_msgs/PoseWithCovariance": "c23e848cf1b7533a8d7c259073a97e6f",
+        "geometry_msgs/TwistWithCovariance": "1fe8a28e6890a4cc3ae4c3ca5c7d82e6",
+        "geometry_msgs/Polygon": "cd60a26494a087f577976f0329fa120e",
+        "sensor_msgs/Imu": "6a62c6daae103f4ff57a132d6f95cec2",
+        "sensor_msgs/LaserScan": "90c7ef2dc6895d81024acba2ac42f369",
+        "sensor_msgs/JointState": "3066dcd76a6cfaef579bd0f34173e9fd",
+        "sensor_msgs/NavSatFix": "2d3a8cd499b9b4a0249fb98fd05cfa48",
+        "sensor_msgs/CameraInfo": "c9a58c1b0b154e0e6da7578cb991d214",
+        "nav_msgs/Odometry": "cd5e73d190d741a2f92e81eda573aca7",
+        "nav_msgs/Path": "6227e2b7e9cce15051f669a5e197bbf7",
+        "nav_msgs/OccupancyGrid": "3381f2d731d4076ec5c71b0759edbe4e",
+        "nav_msgs/MapMetaData": "10cfc8a2818024d3248802c00c95f11b",
+        "diagnostic_msgs/KeyValue": "cf57fdc6617a881a88c16e768132149c",
+        "diagnostic_msgs/DiagnosticStatus": "d0ce08bc6e5ba34c7754f563a9cabaf1",
+        "diagnostic_msgs/DiagnosticArray": "60810da900de1dd6ddd437c3503511da",
+        "trajectory_msgs/JointTrajectory": "65b4f94a94d1ed67169da35a02f33d3f",
+        "trajectory_msgs/JointTrajectoryPoint": "f3cd1e1c4d320c79d6985c904ae5dcd3",
+        "trajectory_msgs/MultiDOFJointTrajectory": "ef145a45a5f47b77b7f5cdde4b16c942",
+    }
+    for t, e in expect.items():
+        got = registry.get_spec(t).compute_md5()
+        assert got == e, "%s: %s != %s" % (t, got, e)
+
+    # a nested composite (fixed cov array + nested + string) round-trips.
+    o = msg.Odometry()
+    o.header.frame_id = "odom"
+    o.child_frame_id = "base_link"
+    o.pose.pose.position.x = 1.5
+    o.pose.covariance = [float(i) for i in range(36)]
+    o.twist.twist.angular.z = 0.3
+    o2 = msg.Odometry.deserialize(o.serialize())
+    assert o2.child_frame_id == "base_link"
+    assert o2.pose.pose.position.x == 1.5
+    assert o2.pose.covariance[35] == 35.0
+    assert o2.twist.twist.angular.z == 0.3
+
+    jt = msg.JointTrajectory()
+    jt.joint_names = ["j1", "j2"]
+    p = msg.JointTrajectoryPoint(positions=[0.1, 0.2], velocities=[1.0])
+    p.time_from_start = (3, 400)
+    jt.points = [p]
+    jt2 = msg.JointTrajectory.deserialize(jt.serialize())
+    assert jt2.joint_names == ["j1", "j2"]
+    assert jt2.points[0].positions == [0.1, 0.2]
+    assert jt2.points[0].time_from_start == (3, 400)
+
+
 def test_service_md5_and_roundtrip():
     AddTwoInts = define_service("rospy_tutorials/AddTwoInts",
                                 "int64 a\nint64 b", "int64 sum")
@@ -160,6 +214,7 @@ if __name__ == "__main__":
     test_roundtrip_builtins()
     test_custom_and_constants()
     test_bare_header_md5()
+    test_extended_catalog_md5()
     test_service_md5_and_roundtrip()
     test_action_md5()
     print("all message + service + action tests passed")

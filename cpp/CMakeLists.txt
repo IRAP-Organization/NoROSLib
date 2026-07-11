@@ -23,7 +23,8 @@ target_link_libraries(noros PUBLIC Threads::Threads)
 foreach(ex talker listener custom_msg md5_discovery
            add_two_ints_server add_two_ints_client
            stamped_pub stamped_sub
-           fibonacci_client fibonacci_server nr_roscore)
+           fibonacci_client fibonacci_server
+           params_example udp_listener nr_roscore)
   add_executable(${ex} examples/${ex}.cpp)
   target_include_directories(${ex} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(${ex} noros)

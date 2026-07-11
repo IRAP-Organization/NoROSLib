@@ -21,6 +21,9 @@ Pose2D = define_message("noros_demo/Pose2D", """
 
 
 def main():
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("noros_custom")
     noros.loginfo("Pose2D md5sum = %s" % Pose2D.md5sum())
     pub = noros.Publisher("/pose2d", Pose2D)

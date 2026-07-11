@@ -11,6 +11,9 @@ from noros import msg
 
 
 def main():
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("noros_talker")
     pub = noros.Publisher("/chatter", msg.String)
     rate = noros.Rate(10)

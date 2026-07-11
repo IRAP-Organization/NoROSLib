@@ -26,8 +26,9 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    noros.set_master_uri("http://192.168.10.2:11311")  # set to your roscore URIs
-    noros.set_hostname("192.168.10.2")  # set to your hostname
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("noros_webcam")
     raw_pub = noros.Publisher("/noros/image_raw", msg.Image)
     comp_pub = noros.Publisher("/noros/image_raw/compressed", msg.CompressedImage)

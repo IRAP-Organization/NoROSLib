@@ -82,6 +82,110 @@ struct Header {
   static Header deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); return read(r); }
 };
 
+struct Int8 {
+  static constexpr const char* TYPE = "std_msgs/Int8";
+  static constexpr const char* MD5 = "27ffa0c9c4b8fb8492252bcad9e5c57b";
+  static constexpr const char* DEFINITION = "int8 data\n";
+  int8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i8(data); return w.b; }
+  static Int8 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Int8 m; m.data = r.i8(); return m; }
+};
+
+struct Int16 {
+  static constexpr const char* TYPE = "std_msgs/Int16";
+  static constexpr const char* MD5 = "8524586e34fbd7cb1c08c5f5f1ca0e57";
+  static constexpr const char* DEFINITION = "int16 data\n";
+  int16_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u16(static_cast<uint16_t>(data)); return w.b; }
+  static Int16 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Int16 m; m.data = static_cast<int16_t>(r.u16()); return m; }
+};
+
+struct UInt8 {
+  static constexpr const char* TYPE = "std_msgs/UInt8";
+  static constexpr const char* MD5 = "7c8164229e7d2c17eb95e9231617fdee";
+  static constexpr const char* DEFINITION = "uint8 data\n";
+  uint8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u8(data); return w.b; }
+  static UInt8 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt8 m; m.data = r.u8(); return m; }
+};
+
+struct UInt16 {
+  static constexpr const char* TYPE = "std_msgs/UInt16";
+  static constexpr const char* MD5 = "1df79edf208b629fe6b81923a544552d";
+  static constexpr const char* DEFINITION = "uint16 data\n";
+  uint16_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u16(data); return w.b; }
+  static UInt16 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt16 m; m.data = r.u16(); return m; }
+};
+
+struct UInt32 {
+  static constexpr const char* TYPE = "std_msgs/UInt32";
+  static constexpr const char* MD5 = "304a39449588c7f8ce2df6e8001c5fce";
+  static constexpr const char* DEFINITION = "uint32 data\n";
+  uint32_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u32(data); return w.b; }
+  static UInt32 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt32 m; m.data = r.u32(); return m; }
+};
+
+struct UInt64 {
+  static constexpr const char* TYPE = "std_msgs/UInt64";
+  static constexpr const char* MD5 = "1b2a79973e8bf53d7b53acb71299cb57";
+  static constexpr const char* DEFINITION = "uint64 data\n";
+  uint64_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u64(data); return w.b; }
+  static UInt64 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt64 m; m.data = r.u64(); return m; }
+};
+
+// std_msgs/Byte : `byte data` (a signed 8-bit value on the wire).
+struct Byte {
+  static constexpr const char* TYPE = "std_msgs/Byte";
+  static constexpr const char* MD5 = "ad736a2e8818154c487bb80fe42ce43b";
+  static constexpr const char* DEFINITION = "byte data\n";
+  int8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i8(data); return w.b; }
+  static Byte deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Byte m; m.data = r.i8(); return m; }
+};
+
+// std_msgs/Char : `char data` (an unsigned 8-bit value on the wire).
+struct Char {
+  static constexpr const char* TYPE = "std_msgs/Char";
+  static constexpr const char* MD5 = "1bf77f25acecdedba0e224b162199717";
+  static constexpr const char* DEFINITION = "char data\n";
+  uint8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u8(data); return w.b; }
+  static Char deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Char m; m.data = r.u8(); return m; }
+};
+
+struct Empty {
+  static constexpr const char* TYPE = "std_msgs/Empty";
+  static constexpr const char* MD5 = "d41d8cd98f00b204e9800998ecf8427e";
+  static constexpr const char* DEFINITION = "";
+  std::vector<uint8_t> serialize() const { return {}; }
+  static Empty deserialize(const std::vector<uint8_t>&) { return Empty{}; }
+};
+
+// std_msgs/Time : `time data` — two uint32 (secs, nsecs) on the wire.
+struct Time {
+  static constexpr const char* TYPE = "std_msgs/Time";
+  static constexpr const char* MD5 = "cd7166c74c552c311fbcc2fe5a7bc289";
+  static constexpr const char* DEFINITION = "time data\n";
+  uint32_t data_sec = 0;
+  uint32_t data_nsec = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u32(data_sec); w.u32(data_nsec); return w.b; }
+  static Time deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Time m; m.data_sec = r.u32(); m.data_nsec = r.u32(); return m; }
+};
+
+// std_msgs/Duration : `duration data` — two int32 (secs, nsecs) on the wire.
+struct Duration {
+  static constexpr const char* TYPE = "std_msgs/Duration";
+  static constexpr const char* MD5 = "3e286caf4241d664e55f3ad380e2ae46";
+  static constexpr const char* DEFINITION = "duration data\n";
+  int32_t data_sec = 0;
+  int32_t data_nsec = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i32(data_sec); w.i32(data_nsec); return w.b; }
+  static Duration deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Duration m; m.data_sec = r.i32(); m.data_nsec = r.i32(); return m; }
+};
+
 struct ColorRGBA {
   static constexpr const char* TYPE = "std_msgs/ColorRGBA";
   static constexpr const char* MD5 = "a29a96539573343b1310c73607334b00";

@@ -147,6 +147,212 @@ actionlib_msgs/GoalStatus[] status_list
 """)
 
 
+# -- geometry_msgs (composite types used by nav_msgs / trajectory_msgs) ------
+Transform = define_message("geometry_msgs/Transform", """
+geometry_msgs/Vector3 translation
+geometry_msgs/Quaternion rotation
+""")
+TransformStamped = define_message("geometry_msgs/TransformStamped", """
+std_msgs/Header header
+string child_frame_id
+geometry_msgs/Transform transform
+""")
+Wrench = define_message("geometry_msgs/Wrench", """
+geometry_msgs/Vector3 force
+geometry_msgs/Vector3 torque
+""")
+Accel = define_message("geometry_msgs/Accel", """
+geometry_msgs/Vector3 linear
+geometry_msgs/Vector3 angular
+""")
+PoseWithCovariance = define_message("geometry_msgs/PoseWithCovariance", """
+geometry_msgs/Pose pose
+float64[36] covariance
+""")
+TwistWithCovariance = define_message("geometry_msgs/TwistWithCovariance", """
+geometry_msgs/Twist twist
+float64[36] covariance
+""")
+Polygon = define_message("geometry_msgs/Polygon", """
+geometry_msgs/Point32[] points
+""")
+PoseArray = define_message("geometry_msgs/PoseArray", """
+std_msgs/Header header
+geometry_msgs/Pose[] poses
+""")
+
+# -- sensor_msgs (common sensor feeds) --------------------------------------
+RegionOfInterest = define_message("sensor_msgs/RegionOfInterest", """
+uint32 x_offset
+uint32 y_offset
+uint32 height
+uint32 width
+bool do_rectify
+""")
+Imu = define_message("sensor_msgs/Imu", """
+std_msgs/Header header
+geometry_msgs/Quaternion orientation
+float64[9] orientation_covariance
+geometry_msgs/Vector3 angular_velocity
+float64[9] angular_velocity_covariance
+geometry_msgs/Vector3 linear_acceleration
+float64[9] linear_acceleration_covariance
+""")
+LaserScan = define_message("sensor_msgs/LaserScan", """
+std_msgs/Header header
+float32 angle_min
+float32 angle_max
+float32 angle_increment
+float32 time_increment
+float32 scan_time
+float32 range_min
+float32 range_max
+float32[] ranges
+float32[] intensities
+""")
+JointState = define_message("sensor_msgs/JointState", """
+std_msgs/Header header
+string[] name
+float64[] position
+float64[] velocity
+float64[] effort
+""")
+NavSatStatus = define_message("sensor_msgs/NavSatStatus", """
+int8 STATUS_NO_FIX=-1
+int8 STATUS_FIX=0
+int8 STATUS_SBAS_FIX=1
+int8 STATUS_GBAS_FIX=2
+int8 status
+uint16 SERVICE_GPS=1
+uint16 SERVICE_GLONASS=2
+uint16 SERVICE_COMPASS=4
+uint16 SERVICE_GALILEO=8
+uint16 service
+""")
+NavSatFix = define_message("sensor_msgs/NavSatFix", """
+std_msgs/Header header
+sensor_msgs/NavSatStatus status
+float64 latitude
+float64 longitude
+float64 altitude
+float64[9] position_covariance
+uint8 COVARIANCE_TYPE_UNKNOWN=0
+uint8 COVARIANCE_TYPE_APPROXIMATED=1
+uint8 COVARIANCE_TYPE_DIAGONAL_KNOWN=2
+uint8 COVARIANCE_TYPE_KNOWN=3
+uint8 position_covariance_type
+""")
+Range = define_message("sensor_msgs/Range", """
+std_msgs/Header header
+uint8 ULTRASOUND=0
+uint8 INFRARED=1
+uint8 radiation_type
+float32 field_of_view
+float32 min_range
+float32 max_range
+float32 range
+""")
+Temperature = define_message("sensor_msgs/Temperature", """
+std_msgs/Header header
+float64 temperature
+float64 variance
+""")
+MagneticField = define_message("sensor_msgs/MagneticField", """
+std_msgs/Header header
+geometry_msgs/Vector3 magnetic_field
+float64[9] magnetic_field_covariance
+""")
+CameraInfo = define_message("sensor_msgs/CameraInfo", """
+std_msgs/Header header
+uint32 height
+uint32 width
+string distortion_model
+float64[] D
+float64[9] K
+float64[9] R
+float64[12] P
+uint32 binning_x
+uint32 binning_y
+sensor_msgs/RegionOfInterest roi
+""")
+
+# -- diagnostic_msgs --------------------------------------------------------
+KeyValue = define_message("diagnostic_msgs/KeyValue", """
+string key
+string value
+""")
+DiagnosticStatus = define_message("diagnostic_msgs/DiagnosticStatus", """
+byte OK=0
+byte WARN=1
+byte ERROR=2
+byte STALE=3
+byte level
+string name
+string message
+string hardware_id
+diagnostic_msgs/KeyValue[] values
+""")
+DiagnosticArray = define_message("diagnostic_msgs/DiagnosticArray", """
+std_msgs/Header header
+diagnostic_msgs/DiagnosticStatus[] status
+""")
+
+# -- nav_msgs ---------------------------------------------------------------
+MapMetaData = define_message("nav_msgs/MapMetaData", """
+time map_load_time
+float32 resolution
+uint32 width
+uint32 height
+geometry_msgs/Pose origin
+""")
+Odometry = define_message("nav_msgs/Odometry", """
+std_msgs/Header header
+string child_frame_id
+geometry_msgs/PoseWithCovariance pose
+geometry_msgs/TwistWithCovariance twist
+""")
+Path = define_message("nav_msgs/Path", """
+std_msgs/Header header
+geometry_msgs/PoseStamped[] poses
+""")
+OccupancyGrid = define_message("nav_msgs/OccupancyGrid", """
+std_msgs/Header header
+nav_msgs/MapMetaData info
+int8[] data
+""")
+GridCells = define_message("nav_msgs/GridCells", """
+std_msgs/Header header
+float32 cell_width
+float32 cell_height
+geometry_msgs/Point[] cells
+""")
+
+# -- trajectory_msgs --------------------------------------------------------
+JointTrajectoryPoint = define_message("trajectory_msgs/JointTrajectoryPoint", """
+float64[] positions
+float64[] velocities
+float64[] accelerations
+float64[] effort
+duration time_from_start
+""")
+JointTrajectory = define_message("trajectory_msgs/JointTrajectory", """
+std_msgs/Header header
+string[] joint_names
+trajectory_msgs/JointTrajectoryPoint[] points
+""")
+MultiDOFJointTrajectoryPoint = define_message("trajectory_msgs/MultiDOFJointTrajectoryPoint", """
+geometry_msgs/Transform[] transforms
+geometry_msgs/Twist[] velocities
+geometry_msgs/Twist[] accelerations
+duration time_from_start
+""")
+MultiDOFJointTrajectory = define_message("trajectory_msgs/MultiDOFJointTrajectory", """
+std_msgs/Header header
+string[] joint_names
+trajectory_msgs/MultiDOFJointTrajectoryPoint[] points
+""")
+
+
 def get(full_type):
     """Return the registered class for 'pkg/Type', or None."""
     return get_message_class(full_type)

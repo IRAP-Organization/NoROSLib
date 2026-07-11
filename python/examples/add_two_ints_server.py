@@ -23,6 +23,9 @@ def handle(req):
 
 
 def main():
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("add_two_ints_server")
     noros.Service("/add_two_ints", AddTwoInts, handle)
     noros.loginfo("ready to add two ints (md5 %s)" % AddTwoInts.md5sum())

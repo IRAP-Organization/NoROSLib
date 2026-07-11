@@ -23,6 +23,9 @@ def callback(m):
 
 
 def main():
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     node = noros.init_node("noros_md5_discovery")
     WRONG_MD5 = "00000000000000000000000000000000"
     noros.logwarn("subscribing to /disc with a deliberately WRONG md5: %s" % WRONG_MD5)

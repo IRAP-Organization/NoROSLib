@@ -1,5 +1,28 @@
 # NoROSLib
 
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/c398c07a-1c5f-4cdb-b0a2-8c4068b6b208"
+    alt="NoROSLib Logo"
+    width="260">
+</p>
+
+<h1 align="center">NoROSLib</h1>
+
+<p align="center">
+<b>A lightweight ROS client library that needs no ROS installed.</b>
+</p>
+
+<p align="center">
+Python • C++ • Windows • Linux • macOS
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.6+-3776AB?logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/C++-17-00599C?logo=cplusplus&logoColor=white">
+  <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros">
+  <img src="https://img.shields.io/badge/License-MIT-green">
+</p>
 **A lightweight ROS client library that needs no ROS installed.** NoROSLib (the
 library you import is called `noros`) impersonates a ROS node by speaking the real
 ROS wire protocols directly — the XML-RPC master/slave API and TCPROS/UDPROS — so
@@ -52,7 +75,7 @@ it from elsewhere.
 | **Services** (srv) | rosrpc / TCPROS | ✅ | ✅ |
 | **Actions** (actionlib) | 5 action topics | ✅ | ✅ |
 | **Parameters** | master XML-RPC | ✅ | ✅ |
-| **Messages** | std/geometry/sensor + custom | ✅ | ✅ |
+| **Messages** | std/geometry/sensor/nav/diagnostic/trajectory + custom | ✅ | ✅ |
 | **md5** | auto-computed **and** auto-discovered from mismatch | ✅ | ✅ |
 | **Config** | master URI + hostname from code | ✅ | ✅ |
 | **Master (`nr_roscore`)** | *be* the roscore: Master + Param Server (dict trees) + `/rosout` | ✅ | ✅ |
@@ -188,6 +211,30 @@ int main() {
 Both interoperate with real ROS: `rostopic echo /chatter` sees the talker, and
 `rostopic pub -r 10 /chatter std_msgs/String "data: hi"` feeds the listener.
 
+## Built-in messages
+
+A ready-to-use catalog ships with noros — every md5sum matches `rosmsg md5 <type>`
+exactly, so they interoperate with real ROS nodes. Python: `from noros import msg`
+then `msg.Odometry` (or `msg.get("nav_msgs/Odometry")`). C++: `#include "noros.hpp"`
+then `nav_msgs::Odometry`.
+
+| Package | Types |
+|---|---|
+| **std_msgs** | Bool, Byte, Char, Int8–64, UInt8–64, Float32/64, String, Empty, Time, Duration, Header, ColorRGBA |
+| **geometry_msgs** | Vector3, Point, Point32, Quaternion, Pose, PoseStamped, PoseArray, Twist, TwistStamped, Accel, Wrench, Transform, TransformStamped, Polygon, PoseWithCovariance, TwistWithCovariance |
+| **sensor_msgs** | Image, CompressedImage, PointField, PointCloud2, Imu, LaserScan, JointState, NavSatFix, NavSatStatus, Range, Temperature, MagneticField, RegionOfInterest, CameraInfo |
+| **nav_msgs** | Odometry, Path, OccupancyGrid, MapMetaData, GridCells |
+| **diagnostic_msgs** | KeyValue, DiagnosticStatus, DiagnosticArray |
+| **trajectory_msgs** | JointTrajectory, JointTrajectoryPoint, MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint |
+| **actionlib_msgs** | GoalID, GoalStatus, GoalStatusArray |
+
+**C++ and Python expose the identical 64-type catalog** — the same types under
+`msg.*` (Python) and the matching `pkg_msgs::*` structs (C++), every md5 matching
+`rosmsg md5`. The two libraries are in lock-step.
+
+Need a type that isn't here? Define it in one line (below) — noros derives the
+md5 and codec from the `.msg` text.
+
 ## Custom messages
 
 Ship your own message type. Its md5sum is derived by the exact ROS algorithm (so
@@ -263,8 +310,8 @@ set. Python: `python3 python/examples/<name>.py`. C++: build with CMake, then
 | **stamped_pub** / **stamped_sub** | a custom message with a `std_msgs/Header` | ✅ | ✅ |
 | **add_two_ints_server** / **add_two_ints_client** | a service (srv) server + client | ✅ | ✅ |
 | **fibonacci_server** / **fibonacci_client** | an action (actionlib) server + client | ✅ | ✅ |
-| **params_example** | parameters: get/set/has/delete/search/list | ✅ | — |
-| **udp_listener** | subscribe over **UDPROS** | ✅ | — (use `Subscriber(..., "udpros")`) |
+| **params_example** | parameters: get/set/has/delete (Python also search/list) | ✅ | ✅ |
+| **udp_listener** | subscribe over **UDPROS** | ✅ | ✅ |
 | **nr_roscore** | run your own ROS master (roscore) | ✅ | ✅ |
 | **webcam_pub** | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` | ✅ | — |
 | **ros_image_viewer** | a *real* rospy node that `cv2.imshow`s the webcam feed | ✅ (rospy) | — |
@@ -317,6 +364,23 @@ it, and noros nodes use it as their master. Stress-tested: the 13-type topic
 matrix (TCPROS+UDPROS), a 3,600-call service flood, concurrent parameter churn,
 and a 5,400-op registration storm all pass against both masters.
 
+### Message-type coverage (verified against real ROS)
+
+Every built-in message type — and a **custom message created on real ROS** (a
+catkin `noros_stress_msgs/CustomData` package) — round-trips through a real
+`roscore` in **both languages**, decoded by genuine `rospy` subscribers (so the
+md5 handshake + wire bytes are checked by ROS itself):
+
+| | types published | verified by real ROS |
+|---|:---:|:---:|
+| **Python** | 64 built-ins + custom | 65 / 65 ✅ |
+| **C++** | 64 built-ins + custom | 65 / 65 ✅ |
+
+The custom message's md5 that noros computes (`90f5077…`) is **identical** to the
+one real ROS's `rosmsg md5` generates for the same `.msg`, and it flows both ways
+(noros → `rostopic echo`, and a real `rospy` publisher → noros subscriber) in
+Python and C++.
+
 ## How it works
 
 1. **Register with the master** (`registerPublisher` / `registerSubscriber`) and
@@ -349,4 +413,3 @@ Created by **iRAP Robot**, King Mongkut's University of Technology North Bangkok
 ## License
 
 MIT — see [LICENSE](LICENSE).
-# NoROSLib

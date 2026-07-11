@@ -15,6 +15,9 @@ Fibonacci = define_action("actionlib_tutorials/Fibonacci",
 
 def main():
     order = int(sys.argv[1]) if len(sys.argv) > 1 else 8
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("noros_fib_client")
     client = SimpleActionClient("/fibonacci", Fibonacci)
     if not client.wait_for_server(timeout=8.0):

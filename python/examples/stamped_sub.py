@@ -26,6 +26,9 @@ def callback(m):
 
 
 def main():
+    # Point noros at the ROS master before init_node (defaults to a local roscore).
+    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     noros.init_node("stamped_sub")
     noros.Subscriber("/sensor_reading", SensorReading, callback)
     noros.spin()

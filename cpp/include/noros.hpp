@@ -196,6 +196,7 @@ inline void wall_time(int64_t* sec, int64_t* nsec) {
 }  // namespace noros
 // ---- portable standard-library includes ----
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -380,6 +381,110 @@ struct Header {
   static Header deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); return read(r); }
 };
 
+struct Int8 {
+  static constexpr const char* TYPE = "std_msgs/Int8";
+  static constexpr const char* MD5 = "27ffa0c9c4b8fb8492252bcad9e5c57b";
+  static constexpr const char* DEFINITION = "int8 data\n";
+  int8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i8(data); return w.b; }
+  static Int8 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Int8 m; m.data = r.i8(); return m; }
+};
+
+struct Int16 {
+  static constexpr const char* TYPE = "std_msgs/Int16";
+  static constexpr const char* MD5 = "8524586e34fbd7cb1c08c5f5f1ca0e57";
+  static constexpr const char* DEFINITION = "int16 data\n";
+  int16_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u16(static_cast<uint16_t>(data)); return w.b; }
+  static Int16 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Int16 m; m.data = static_cast<int16_t>(r.u16()); return m; }
+};
+
+struct UInt8 {
+  static constexpr const char* TYPE = "std_msgs/UInt8";
+  static constexpr const char* MD5 = "7c8164229e7d2c17eb95e9231617fdee";
+  static constexpr const char* DEFINITION = "uint8 data\n";
+  uint8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u8(data); return w.b; }
+  static UInt8 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt8 m; m.data = r.u8(); return m; }
+};
+
+struct UInt16 {
+  static constexpr const char* TYPE = "std_msgs/UInt16";
+  static constexpr const char* MD5 = "1df79edf208b629fe6b81923a544552d";
+  static constexpr const char* DEFINITION = "uint16 data\n";
+  uint16_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u16(data); return w.b; }
+  static UInt16 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt16 m; m.data = r.u16(); return m; }
+};
+
+struct UInt32 {
+  static constexpr const char* TYPE = "std_msgs/UInt32";
+  static constexpr const char* MD5 = "304a39449588c7f8ce2df6e8001c5fce";
+  static constexpr const char* DEFINITION = "uint32 data\n";
+  uint32_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u32(data); return w.b; }
+  static UInt32 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt32 m; m.data = r.u32(); return m; }
+};
+
+struct UInt64 {
+  static constexpr const char* TYPE = "std_msgs/UInt64";
+  static constexpr const char* MD5 = "1b2a79973e8bf53d7b53acb71299cb57";
+  static constexpr const char* DEFINITION = "uint64 data\n";
+  uint64_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u64(data); return w.b; }
+  static UInt64 deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); UInt64 m; m.data = r.u64(); return m; }
+};
+
+// std_msgs/Byte : `byte data` (a signed 8-bit value on the wire).
+struct Byte {
+  static constexpr const char* TYPE = "std_msgs/Byte";
+  static constexpr const char* MD5 = "ad736a2e8818154c487bb80fe42ce43b";
+  static constexpr const char* DEFINITION = "byte data\n";
+  int8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i8(data); return w.b; }
+  static Byte deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Byte m; m.data = r.i8(); return m; }
+};
+
+// std_msgs/Char : `char data` (an unsigned 8-bit value on the wire).
+struct Char {
+  static constexpr const char* TYPE = "std_msgs/Char";
+  static constexpr const char* MD5 = "1bf77f25acecdedba0e224b162199717";
+  static constexpr const char* DEFINITION = "char data\n";
+  uint8_t data = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u8(data); return w.b; }
+  static Char deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Char m; m.data = r.u8(); return m; }
+};
+
+struct Empty {
+  static constexpr const char* TYPE = "std_msgs/Empty";
+  static constexpr const char* MD5 = "d41d8cd98f00b204e9800998ecf8427e";
+  static constexpr const char* DEFINITION = "";
+  std::vector<uint8_t> serialize() const { return {}; }
+  static Empty deserialize(const std::vector<uint8_t>&) { return Empty{}; }
+};
+
+// std_msgs/Time : `time data` — two uint32 (secs, nsecs) on the wire.
+struct Time {
+  static constexpr const char* TYPE = "std_msgs/Time";
+  static constexpr const char* MD5 = "cd7166c74c552c311fbcc2fe5a7bc289";
+  static constexpr const char* DEFINITION = "time data\n";
+  uint32_t data_sec = 0;
+  uint32_t data_nsec = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.u32(data_sec); w.u32(data_nsec); return w.b; }
+  static Time deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Time m; m.data_sec = r.u32(); m.data_nsec = r.u32(); return m; }
+};
+
+// std_msgs/Duration : `duration data` — two int32 (secs, nsecs) on the wire.
+struct Duration {
+  static constexpr const char* TYPE = "std_msgs/Duration";
+  static constexpr const char* MD5 = "3e286caf4241d664e55f3ad380e2ae46";
+  static constexpr const char* DEFINITION = "duration data\n";
+  int32_t data_sec = 0;
+  int32_t data_nsec = 0;
+  std::vector<uint8_t> serialize() const { Writer w; w.i32(data_sec); w.i32(data_nsec); return w.b; }
+  static Duration deserialize(const std::vector<uint8_t>& buf) { Reader r(buf); Duration m; m.data_sec = r.i32(); m.data_nsec = r.i32(); return m; }
+};
+
 struct ColorRGBA {
   static constexpr const char* TYPE = "std_msgs/ColorRGBA";
   static constexpr const char* MD5 = "a29a96539573343b1310c73607334b00";
@@ -395,6 +500,7 @@ struct ColorRGBA {
 
 // ===== noros/geometry_msgs.hpp =====
 // geometry_msgs.hpp — geometry_msgs message types (TYPE/MD5 match real ROS).
+
 
 namespace geometry_msgs {
 using noros::Reader;
@@ -422,6 +528,17 @@ struct Point {
   static Point deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
 };
 
+struct Point32 {
+  static constexpr const char* TYPE = "geometry_msgs/Point32";
+  static constexpr const char* MD5 = "cc153912f1453b708d221682bc23d9ac";
+  static constexpr const char* DEFINITION = "float32 x\nfloat32 y\nfloat32 z\n";
+  float x = 0, y = 0, z = 0;
+  void write(Writer& w) const { w.f32(x); w.f32(y); w.f32(z); }
+  static Point32 read(Reader& r) { Point32 v; v.x = r.f32(); v.y = r.f32(); v.z = r.f32(); return v; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Point32 deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
 struct Quaternion {
   static constexpr const char* TYPE = "geometry_msgs/Quaternion";
   static constexpr const char* MD5 = "a779879fadf0160734f906b8c19c7004";
@@ -439,10 +556,34 @@ struct Twist {
   static constexpr const char* DEFINITION =
       "geometry_msgs/Vector3 linear\ngeometry_msgs/Vector3 angular\n";
   Vector3 linear, angular;
-  std::vector<uint8_t> serialize() const { Writer w; linear.write(w); angular.write(w); return w.b; }
-  static Twist deserialize(const std::vector<uint8_t>& b) {
-    Reader r(b); Twist m; m.linear = Vector3::read(r); m.angular = Vector3::read(r); return m;
-  }
+  void write(Writer& w) const { linear.write(w); angular.write(w); }
+  static Twist read(Reader& r) { Twist m; m.linear = Vector3::read(r); m.angular = Vector3::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Twist deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Accel {
+  static constexpr const char* TYPE = "geometry_msgs/Accel";
+  static constexpr const char* MD5 = "9f195f881246fdfa2798d1d3eebca84a";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Vector3 linear\ngeometry_msgs/Vector3 angular\n";
+  Vector3 linear, angular;
+  void write(Writer& w) const { linear.write(w); angular.write(w); }
+  static Accel read(Reader& r) { Accel m; m.linear = Vector3::read(r); m.angular = Vector3::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Accel deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Wrench {
+  static constexpr const char* TYPE = "geometry_msgs/Wrench";
+  static constexpr const char* MD5 = "4f539cf138b23283b520fd271b567936";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Vector3 force\ngeometry_msgs/Vector3 torque\n";
+  Vector3 force, torque;
+  void write(Writer& w) const { force.write(w); torque.write(w); }
+  static Wrench read(Reader& r) { Wrench m; m.force = Vector3::read(r); m.torque = Vector3::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Wrench deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
 };
 
 struct Pose {
@@ -452,10 +593,10 @@ struct Pose {
       "geometry_msgs/Point position\ngeometry_msgs/Quaternion orientation\n";
   Point position;
   Quaternion orientation;
-  std::vector<uint8_t> serialize() const { Writer w; position.write(w); orientation.write(w); return w.b; }
-  static Pose deserialize(const std::vector<uint8_t>& b) {
-    Reader r(b); Pose m; m.position = Point::read(r); m.orientation = Quaternion::read(r); return m;
-  }
+  void write(Writer& w) const { position.write(w); orientation.write(w); }
+  static Pose read(Reader& r) { Pose m; m.position = Point::read(r); m.orientation = Quaternion::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Pose deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
 };
 
 struct PoseStamped {
@@ -465,19 +606,117 @@ struct PoseStamped {
       "std_msgs/Header header\ngeometry_msgs/Pose pose\n";
   std_msgs::Header header;
   Pose pose;
-  std::vector<uint8_t> serialize() const {
-    Writer w; header.write(w); pose.position.write(w); pose.orientation.write(w); return w.b;
+  void write(Writer& w) const { header.write(w); pose.write(w); }
+  static PoseStamped read(Reader& r) { PoseStamped m; m.header = std_msgs::Header::read(r); m.pose = Pose::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static PoseStamped deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct TwistStamped {
+  static constexpr const char* TYPE = "geometry_msgs/TwistStamped";
+  static constexpr const char* MD5 = "98d34b0043a2093cf9d9345ab6eef12e";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ngeometry_msgs/Twist twist\n";
+  std_msgs::Header header;
+  Twist twist;
+  void write(Writer& w) const { header.write(w); twist.write(w); }
+  static TwistStamped read(Reader& r) { TwistStamped m; m.header = std_msgs::Header::read(r); m.twist = Twist::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static TwistStamped deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct PoseArray {
+  static constexpr const char* TYPE = "geometry_msgs/PoseArray";
+  static constexpr const char* MD5 = "916c28c5764443f268b296bb671b9d97";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ngeometry_msgs/Pose[] poses\n";
+  std_msgs::Header header;
+  std::vector<Pose> poses;
+  void write(Writer& w) const { header.write(w); w.u32((uint32_t)poses.size()); for (auto& p : poses) p.write(w); }
+  static PoseArray read(Reader& r) {
+    PoseArray m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.poses.resize(n); for (auto& p : m.poses) p = Pose::read(r); return m;
   }
-  static PoseStamped deserialize(const std::vector<uint8_t>& b) {
-    Reader r(b); PoseStamped m; m.header = std_msgs::Header::read(r);
-    m.pose.position = Point::read(r); m.pose.orientation = Quaternion::read(r); return m;
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static PoseArray deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Polygon {
+  static constexpr const char* TYPE = "geometry_msgs/Polygon";
+  static constexpr const char* MD5 = "cd60a26494a087f577976f0329fa120e";
+  static constexpr const char* DEFINITION = "geometry_msgs/Point32[] points\n";
+  std::vector<Point32> points;
+  void write(Writer& w) const { w.u32((uint32_t)points.size()); for (auto& p : points) p.write(w); }
+  static Polygon read(Reader& r) { Polygon m; uint32_t n = r.u32(); m.points.resize(n); for (auto& p : m.points) p = Point32::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Polygon deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Transform {
+  static constexpr const char* TYPE = "geometry_msgs/Transform";
+  static constexpr const char* MD5 = "ac9eff44abf714214112b05d54a3cf9b";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Vector3 translation\ngeometry_msgs/Quaternion rotation\n";
+  Vector3 translation;
+  Quaternion rotation;
+  void write(Writer& w) const { translation.write(w); rotation.write(w); }
+  static Transform read(Reader& r) { Transform m; m.translation = Vector3::read(r); m.rotation = Quaternion::read(r); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static Transform deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct TransformStamped {
+  static constexpr const char* TYPE = "geometry_msgs/TransformStamped";
+  static constexpr const char* MD5 = "b5764a33bfeb3588febc2682852579b0";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nstring child_frame_id\ngeometry_msgs/Transform transform\n";
+  std_msgs::Header header;
+  std::string child_frame_id;
+  Transform transform;
+  void write(Writer& w) const { header.write(w); w.str(child_frame_id); transform.write(w); }
+  static TransformStamped read(Reader& r) {
+    TransformStamped m; m.header = std_msgs::Header::read(r);
+    m.child_frame_id = r.str(); m.transform = Transform::read(r); return m;
   }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static TransformStamped deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct PoseWithCovariance {
+  static constexpr const char* TYPE = "geometry_msgs/PoseWithCovariance";
+  static constexpr const char* MD5 = "c23e848cf1b7533a8d7c259073a97e6f";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Pose pose\nfloat64[36] covariance\n";
+  Pose pose;
+  std::array<double, 36> covariance{};
+  void write(Writer& w) const { pose.write(w); for (double v : covariance) w.f64(v); }
+  static PoseWithCovariance read(Reader& r) {
+    PoseWithCovariance m; m.pose = Pose::read(r); for (auto& v : m.covariance) v = r.f64(); return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static PoseWithCovariance deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct TwistWithCovariance {
+  static constexpr const char* TYPE = "geometry_msgs/TwistWithCovariance";
+  static constexpr const char* MD5 = "1fe8a28e6890a4cc3ae4c3ca5c7d82e6";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Twist twist\nfloat64[36] covariance\n";
+  Twist twist;
+  std::array<double, 36> covariance{};
+  void write(Writer& w) const { twist.write(w); for (double v : covariance) w.f64(v); }
+  static TwistWithCovariance read(Reader& r) {
+    TwistWithCovariance m; m.twist = Twist::read(r); for (auto& v : m.covariance) v = r.f64(); return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static TwistWithCovariance deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
 };
 
 }  // namespace geometry_msgs
 
 // ===== noros/sensor_msgs.hpp =====
 // sensor_msgs.hpp — sensor_msgs message types (TYPE/MD5 match real ROS).
+
 
 namespace sensor_msgs {
 using noros::Reader;
@@ -529,6 +768,10 @@ struct CompressedImage {
 struct PointField {
   static constexpr const char* TYPE = "sensor_msgs/PointField";
   static constexpr const char* MD5 = "268eacb2962780ceac86cbd17e328150";
+  static constexpr const char* DEFINITION =
+      "uint8 INT8=1\nuint8 UINT8=2\nuint8 INT16=3\nuint8 UINT16=4\nuint8 INT32=5\n"
+      "uint8 UINT32=6\nuint8 FLOAT32=7\nuint8 FLOAT64=8\n"
+      "string name\nuint32 offset\nuint8 datatype\nuint32 count\n";
   enum { INT8 = 1, UINT8, INT16, UINT16, INT32, UINT32, FLOAT32, FLOAT64 };
   std::string name;
   uint32_t offset = 0;
@@ -538,6 +781,8 @@ struct PointField {
   static PointField read(Reader& r) {
     PointField f; f.name = r.str(); f.offset = r.u32(); f.datatype = r.u8(); f.count = r.u32(); return f;
   }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static PointField deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
 };
 
 // sensor_msgs/PointCloud2
@@ -572,7 +817,506 @@ struct PointCloud2 {
   }
 };
 
+struct RegionOfInterest {
+  static constexpr const char* TYPE = "sensor_msgs/RegionOfInterest";
+  static constexpr const char* MD5 = "bdb633039d588fcccb441a4d43ccfe09";
+  static constexpr const char* DEFINITION =
+      "uint32 x_offset\nuint32 y_offset\nuint32 height\nuint32 width\nbool do_rectify\n";
+  uint32_t x_offset = 0, y_offset = 0, height = 0, width = 0;
+  bool do_rectify = false;
+  void write(Writer& w) const { w.u32(x_offset); w.u32(y_offset); w.u32(height); w.u32(width); w.boolean(do_rectify); }
+  static RegionOfInterest read(Reader& r) {
+    RegionOfInterest m; m.x_offset = r.u32(); m.y_offset = r.u32(); m.height = r.u32();
+    m.width = r.u32(); m.do_rectify = r.boolean(); return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static RegionOfInterest deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Imu {
+  static constexpr const char* TYPE = "sensor_msgs/Imu";
+  static constexpr const char* MD5 = "6a62c6daae103f4ff57a132d6f95cec2";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ngeometry_msgs/Quaternion orientation\nfloat64[9] orientation_covariance\n"
+      "geometry_msgs/Vector3 angular_velocity\nfloat64[9] angular_velocity_covariance\n"
+      "geometry_msgs/Vector3 linear_acceleration\nfloat64[9] linear_acceleration_covariance\n";
+  std_msgs::Header header;
+  geometry_msgs::Quaternion orientation;
+  std::array<double, 9> orientation_covariance{};
+  geometry_msgs::Vector3 angular_velocity;
+  std::array<double, 9> angular_velocity_covariance{};
+  geometry_msgs::Vector3 linear_acceleration;
+  std::array<double, 9> linear_acceleration_covariance{};
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); orientation.write(w);
+    for (double v : orientation_covariance) w.f64(v);
+    angular_velocity.write(w); for (double v : angular_velocity_covariance) w.f64(v);
+    linear_acceleration.write(w); for (double v : linear_acceleration_covariance) w.f64(v);
+    return w.b;
+  }
+  static Imu deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); Imu m; m.header = std_msgs::Header::read(r);
+    m.orientation = geometry_msgs::Quaternion::read(r);
+    for (auto& v : m.orientation_covariance) v = r.f64();
+    m.angular_velocity = geometry_msgs::Vector3::read(r);
+    for (auto& v : m.angular_velocity_covariance) v = r.f64();
+    m.linear_acceleration = geometry_msgs::Vector3::read(r);
+    for (auto& v : m.linear_acceleration_covariance) v = r.f64();
+    return m;
+  }
+};
+
+struct LaserScan {
+  static constexpr const char* TYPE = "sensor_msgs/LaserScan";
+  static constexpr const char* MD5 = "90c7ef2dc6895d81024acba2ac42f369";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nfloat32 angle_min\nfloat32 angle_max\nfloat32 angle_increment\n"
+      "float32 time_increment\nfloat32 scan_time\nfloat32 range_min\nfloat32 range_max\n"
+      "float32[] ranges\nfloat32[] intensities\n";
+  std_msgs::Header header;
+  float angle_min = 0, angle_max = 0, angle_increment = 0;
+  float time_increment = 0, scan_time = 0, range_min = 0, range_max = 0;
+  std::vector<float> ranges, intensities;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.f32(angle_min); w.f32(angle_max); w.f32(angle_increment);
+    w.f32(time_increment); w.f32(scan_time); w.f32(range_min); w.f32(range_max);
+    w.u32((uint32_t)ranges.size()); for (float v : ranges) w.f32(v);
+    w.u32((uint32_t)intensities.size()); for (float v : intensities) w.f32(v);
+    return w.b;
+  }
+  static LaserScan deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); LaserScan m; m.header = std_msgs::Header::read(r);
+    m.angle_min = r.f32(); m.angle_max = r.f32(); m.angle_increment = r.f32();
+    m.time_increment = r.f32(); m.scan_time = r.f32(); m.range_min = r.f32(); m.range_max = r.f32();
+    uint32_t n = r.u32(); m.ranges.resize(n); for (auto& v : m.ranges) v = r.f32();
+    n = r.u32(); m.intensities.resize(n); for (auto& v : m.intensities) v = r.f32();
+    return m;
+  }
+};
+
+struct JointState {
+  static constexpr const char* TYPE = "sensor_msgs/JointState";
+  static constexpr const char* MD5 = "3066dcd76a6cfaef579bd0f34173e9fd";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nstring[] name\nfloat64[] position\nfloat64[] velocity\nfloat64[] effort\n";
+  std_msgs::Header header;
+  std::vector<std::string> name;
+  std::vector<double> position, velocity, effort;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w);
+    w.u32((uint32_t)name.size()); for (auto& s : name) w.str(s);
+    w.u32((uint32_t)position.size()); for (double v : position) w.f64(v);
+    w.u32((uint32_t)velocity.size()); for (double v : velocity) w.f64(v);
+    w.u32((uint32_t)effort.size()); for (double v : effort) w.f64(v);
+    return w.b;
+  }
+  static JointState deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); JointState m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.name.resize(n); for (auto& s : m.name) s = r.str();
+    n = r.u32(); m.position.resize(n); for (auto& v : m.position) v = r.f64();
+    n = r.u32(); m.velocity.resize(n); for (auto& v : m.velocity) v = r.f64();
+    n = r.u32(); m.effort.resize(n); for (auto& v : m.effort) v = r.f64();
+    return m;
+  }
+};
+
+struct NavSatStatus {
+  static constexpr const char* TYPE = "sensor_msgs/NavSatStatus";
+  static constexpr const char* MD5 = "331cdbddfa4bc96ffc3b9ad98900a54c";
+  static constexpr const char* DEFINITION =
+      "int8 STATUS_NO_FIX=-1\nint8 STATUS_FIX=0\nint8 STATUS_SBAS_FIX=1\nint8 STATUS_GBAS_FIX=2\n"
+      "int8 status\nuint16 SERVICE_GPS=1\nuint16 SERVICE_GLONASS=2\nuint16 SERVICE_COMPASS=4\n"
+      "uint16 SERVICE_GALILEO=8\nuint16 service\n";
+  enum { STATUS_NO_FIX = -1, STATUS_FIX = 0, STATUS_SBAS_FIX = 1, STATUS_GBAS_FIX = 2 };
+  int8_t status = -1;
+  uint16_t service = 0;
+  void write(Writer& w) const { w.i8(status); w.u16(service); }
+  static NavSatStatus read(Reader& r) { NavSatStatus m; m.status = r.i8(); m.service = r.u16(); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static NavSatStatus deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct NavSatFix {
+  static constexpr const char* TYPE = "sensor_msgs/NavSatFix";
+  static constexpr const char* MD5 = "2d3a8cd499b9b4a0249fb98fd05cfa48";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nsensor_msgs/NavSatStatus status\nfloat64 latitude\nfloat64 longitude\n"
+      "float64 altitude\nfloat64[9] position_covariance\nuint8 position_covariance_type\n";
+  std_msgs::Header header;
+  NavSatStatus status;
+  double latitude = 0, longitude = 0, altitude = 0;
+  std::array<double, 9> position_covariance{};
+  uint8_t position_covariance_type = 0;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); status.write(w); w.f64(latitude); w.f64(longitude); w.f64(altitude);
+    for (double v : position_covariance) w.f64(v); w.u8(position_covariance_type); return w.b;
+  }
+  static NavSatFix deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); NavSatFix m; m.header = std_msgs::Header::read(r); m.status = NavSatStatus::read(r);
+    m.latitude = r.f64(); m.longitude = r.f64(); m.altitude = r.f64();
+    for (auto& v : m.position_covariance) v = r.f64(); m.position_covariance_type = r.u8(); return m;
+  }
+};
+
+struct Range {
+  static constexpr const char* TYPE = "sensor_msgs/Range";
+  static constexpr const char* MD5 = "c005c34273dc426c67a020a87bc24148";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nuint8 ULTRASOUND=0\nuint8 INFRARED=1\nuint8 radiation_type\n"
+      "float32 field_of_view\nfloat32 min_range\nfloat32 max_range\nfloat32 range\n";
+  enum { ULTRASOUND = 0, INFRARED = 1 };
+  std_msgs::Header header;
+  uint8_t radiation_type = 0;
+  float field_of_view = 0, min_range = 0, max_range = 0, range = 0;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.u8(radiation_type); w.f32(field_of_view);
+    w.f32(min_range); w.f32(max_range); w.f32(range); return w.b;
+  }
+  static Range deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); Range m; m.header = std_msgs::Header::read(r); m.radiation_type = r.u8();
+    m.field_of_view = r.f32(); m.min_range = r.f32(); m.max_range = r.f32(); m.range = r.f32(); return m;
+  }
+};
+
+struct Temperature {
+  static constexpr const char* TYPE = "sensor_msgs/Temperature";
+  static constexpr const char* MD5 = "ff71b307acdbe7c871a5a6d7ed359100";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nfloat64 temperature\nfloat64 variance\n";
+  std_msgs::Header header;
+  double temperature = 0, variance = 0;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.f64(temperature); w.f64(variance); return w.b;
+  }
+  static Temperature deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); Temperature m; m.header = std_msgs::Header::read(r);
+    m.temperature = r.f64(); m.variance = r.f64(); return m;
+  }
+};
+
+struct MagneticField {
+  static constexpr const char* TYPE = "sensor_msgs/MagneticField";
+  static constexpr const char* MD5 = "2f3b0b43eed0c9501de0fa3ff89a45aa";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ngeometry_msgs/Vector3 magnetic_field\nfloat64[9] magnetic_field_covariance\n";
+  std_msgs::Header header;
+  geometry_msgs::Vector3 magnetic_field;
+  std::array<double, 9> magnetic_field_covariance{};
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); magnetic_field.write(w);
+    for (double v : magnetic_field_covariance) w.f64(v); return w.b;
+  }
+  static MagneticField deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); MagneticField m; m.header = std_msgs::Header::read(r);
+    m.magnetic_field = geometry_msgs::Vector3::read(r);
+    for (auto& v : m.magnetic_field_covariance) v = r.f64(); return m;
+  }
+};
+
+struct CameraInfo {
+  static constexpr const char* TYPE = "sensor_msgs/CameraInfo";
+  static constexpr const char* MD5 = "c9a58c1b0b154e0e6da7578cb991d214";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nuint32 height\nuint32 width\nstring distortion_model\nfloat64[] D\n"
+      "float64[9] K\nfloat64[9] R\nfloat64[12] P\nuint32 binning_x\nuint32 binning_y\n"
+      "sensor_msgs/RegionOfInterest roi\n";
+  std_msgs::Header header;
+  uint32_t height = 0, width = 0;
+  std::string distortion_model = "plumb_bob";
+  std::vector<double> D;
+  std::array<double, 9> K{}, R{};
+  std::array<double, 12> P{};
+  uint32_t binning_x = 0, binning_y = 0;
+  RegionOfInterest roi;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.u32(height); w.u32(width); w.str(distortion_model);
+    w.u32((uint32_t)D.size()); for (double v : D) w.f64(v);
+    for (double v : K) w.f64(v); for (double v : R) w.f64(v); for (double v : P) w.f64(v);
+    w.u32(binning_x); w.u32(binning_y); roi.write(w); return w.b;
+  }
+  static CameraInfo deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); CameraInfo m; m.header = std_msgs::Header::read(r);
+    m.height = r.u32(); m.width = r.u32(); m.distortion_model = r.str();
+    uint32_t n = r.u32(); m.D.resize(n); for (auto& v : m.D) v = r.f64();
+    for (auto& v : m.K) v = r.f64(); for (auto& v : m.R) v = r.f64(); for (auto& v : m.P) v = r.f64();
+    m.binning_x = r.u32(); m.binning_y = r.u32(); m.roi = RegionOfInterest::read(r); return m;
+  }
+};
+
 }  // namespace sensor_msgs
+
+// ===== noros/nav_msgs.hpp =====
+// nav_msgs.hpp — nav_msgs message types (TYPE/MD5 match real ROS).
+
+namespace nav_msgs {
+using noros::Reader;
+using noros::Writer;
+
+struct MapMetaData {
+  static constexpr const char* TYPE = "nav_msgs/MapMetaData";
+  static constexpr const char* MD5 = "10cfc8a2818024d3248802c00c95f11b";
+  static constexpr const char* DEFINITION =
+      "time map_load_time\nfloat32 resolution\nuint32 width\nuint32 height\ngeometry_msgs/Pose origin\n";
+  uint32_t map_load_time_sec = 0, map_load_time_nsec = 0;
+  float resolution = 0;
+  uint32_t width = 0, height = 0;
+  geometry_msgs::Pose origin;
+  void write(Writer& w) const {
+    w.u32(map_load_time_sec); w.u32(map_load_time_nsec);
+    w.f32(resolution); w.u32(width); w.u32(height); origin.write(w);
+  }
+  static MapMetaData read(Reader& r) {
+    MapMetaData m; m.map_load_time_sec = r.u32(); m.map_load_time_nsec = r.u32();
+    m.resolution = r.f32(); m.width = r.u32(); m.height = r.u32(); m.origin = geometry_msgs::Pose::read(r);
+    return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static MapMetaData deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct Odometry {
+  static constexpr const char* TYPE = "nav_msgs/Odometry";
+  static constexpr const char* MD5 = "cd5e73d190d741a2f92e81eda573aca7";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nstring child_frame_id\ngeometry_msgs/PoseWithCovariance pose\n"
+      "geometry_msgs/TwistWithCovariance twist\n";
+  std_msgs::Header header;
+  std::string child_frame_id;
+  geometry_msgs::PoseWithCovariance pose;
+  geometry_msgs::TwistWithCovariance twist;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.str(child_frame_id); pose.write(w); twist.write(w); return w.b;
+  }
+  static Odometry deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); Odometry m; m.header = std_msgs::Header::read(r); m.child_frame_id = r.str();
+    m.pose = geometry_msgs::PoseWithCovariance::read(r); m.twist = geometry_msgs::TwistWithCovariance::read(r);
+    return m;
+  }
+};
+
+struct Path {
+  static constexpr const char* TYPE = "nav_msgs/Path";
+  static constexpr const char* MD5 = "6227e2b7e9cce15051f669a5e197bbf7";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ngeometry_msgs/PoseStamped[] poses\n";
+  std_msgs::Header header;
+  std::vector<geometry_msgs::PoseStamped> poses;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.u32((uint32_t)poses.size()); for (auto& p : poses) p.write(w); return w.b;
+  }
+  static Path deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); Path m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.poses.resize(n); for (auto& p : m.poses) p = geometry_msgs::PoseStamped::read(r);
+    return m;
+  }
+};
+
+struct OccupancyGrid {
+  static constexpr const char* TYPE = "nav_msgs/OccupancyGrid";
+  static constexpr const char* MD5 = "3381f2d731d4076ec5c71b0759edbe4e";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nnav_msgs/MapMetaData info\nint8[] data\n";
+  std_msgs::Header header;
+  MapMetaData info;
+  std::vector<int8_t> data;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); info.write(w);
+    w.u32((uint32_t)data.size()); for (int8_t v : data) w.i8(v); return w.b;
+  }
+  static OccupancyGrid deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); OccupancyGrid m; m.header = std_msgs::Header::read(r); m.info = MapMetaData::read(r);
+    uint32_t n = r.u32(); m.data.resize(n); for (auto& v : m.data) v = r.i8(); return m;
+  }
+};
+
+struct GridCells {
+  static constexpr const char* TYPE = "nav_msgs/GridCells";
+  static constexpr const char* MD5 = "b9e4f5df6d28e272ebde00a3994830f5";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nfloat32 cell_width\nfloat32 cell_height\ngeometry_msgs/Point[] cells\n";
+  std_msgs::Header header;
+  float cell_width = 0, cell_height = 0;
+  std::vector<geometry_msgs::Point> cells;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.f32(cell_width); w.f32(cell_height);
+    w.u32((uint32_t)cells.size()); for (auto& c : cells) c.write(w); return w.b;
+  }
+  static GridCells deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); GridCells m; m.header = std_msgs::Header::read(r);
+    m.cell_width = r.f32(); m.cell_height = r.f32();
+    uint32_t n = r.u32(); m.cells.resize(n); for (auto& c : m.cells) c = geometry_msgs::Point::read(r);
+    return m;
+  }
+};
+
+}  // namespace nav_msgs
+
+// ===== noros/diagnostic_msgs.hpp =====
+// diagnostic_msgs.hpp — diagnostic_msgs message types (TYPE/MD5 match real ROS).
+
+namespace diagnostic_msgs {
+using noros::Reader;
+using noros::Writer;
+
+struct KeyValue {
+  static constexpr const char* TYPE = "diagnostic_msgs/KeyValue";
+  static constexpr const char* MD5 = "cf57fdc6617a881a88c16e768132149c";
+  static constexpr const char* DEFINITION = "string key\nstring value\n";
+  std::string key, value;
+  void write(Writer& w) const { w.str(key); w.str(value); }
+  static KeyValue read(Reader& r) { KeyValue m; m.key = r.str(); m.value = r.str(); return m; }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static KeyValue deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct DiagnosticStatus {
+  static constexpr const char* TYPE = "diagnostic_msgs/DiagnosticStatus";
+  static constexpr const char* MD5 = "d0ce08bc6e5ba34c7754f563a9cabaf1";
+  static constexpr const char* DEFINITION =
+      "byte OK=0\nbyte WARN=1\nbyte ERROR=2\nbyte STALE=3\nbyte level\nstring name\nstring message\n"
+      "string hardware_id\ndiagnostic_msgs/KeyValue[] values\n";
+  enum { OK = 0, WARN = 1, ERROR = 2, STALE = 3 };
+  int8_t level = 0;
+  std::string name, message, hardware_id;
+  std::vector<KeyValue> values;
+  void write(Writer& w) const {
+    w.i8(level); w.str(name); w.str(message); w.str(hardware_id);
+    w.u32((uint32_t)values.size()); for (auto& kv : values) kv.write(w);
+  }
+  static DiagnosticStatus read(Reader& r) {
+    DiagnosticStatus m; m.level = r.i8(); m.name = r.str(); m.message = r.str(); m.hardware_id = r.str();
+    uint32_t n = r.u32(); m.values.resize(n); for (auto& kv : m.values) kv = KeyValue::read(r); return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static DiagnosticStatus deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct DiagnosticArray {
+  static constexpr const char* TYPE = "diagnostic_msgs/DiagnosticArray";
+  static constexpr const char* MD5 = "60810da900de1dd6ddd437c3503511da";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\ndiagnostic_msgs/DiagnosticStatus[] status\n";
+  std_msgs::Header header;
+  std::vector<DiagnosticStatus> status;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w); w.u32((uint32_t)status.size()); for (auto& s : status) s.write(w); return w.b;
+  }
+  static DiagnosticArray deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); DiagnosticArray m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.status.resize(n); for (auto& s : m.status) s = DiagnosticStatus::read(r); return m;
+  }
+};
+
+}  // namespace diagnostic_msgs
+
+// ===== noros/trajectory_msgs.hpp =====
+// trajectory_msgs.hpp — trajectory_msgs message types (TYPE/MD5 match real ROS).
+
+namespace trajectory_msgs {
+using noros::Reader;
+using noros::Writer;
+
+struct JointTrajectoryPoint {
+  static constexpr const char* TYPE = "trajectory_msgs/JointTrajectoryPoint";
+  static constexpr const char* MD5 = "f3cd1e1c4d320c79d6985c904ae5dcd3";
+  static constexpr const char* DEFINITION =
+      "float64[] positions\nfloat64[] velocities\nfloat64[] accelerations\nfloat64[] effort\n"
+      "duration time_from_start\n";
+  std::vector<double> positions, velocities, accelerations, effort;
+  int32_t time_from_start_sec = 0, time_from_start_nsec = 0;   // ROS duration
+  void write(Writer& w) const {
+    w.u32((uint32_t)positions.size()); for (double v : positions) w.f64(v);
+    w.u32((uint32_t)velocities.size()); for (double v : velocities) w.f64(v);
+    w.u32((uint32_t)accelerations.size()); for (double v : accelerations) w.f64(v);
+    w.u32((uint32_t)effort.size()); for (double v : effort) w.f64(v);
+    w.i32(time_from_start_sec); w.i32(time_from_start_nsec);
+  }
+  static JointTrajectoryPoint read(Reader& r) {
+    JointTrajectoryPoint m;
+    uint32_t n = r.u32(); m.positions.resize(n); for (auto& v : m.positions) v = r.f64();
+    n = r.u32(); m.velocities.resize(n); for (auto& v : m.velocities) v = r.f64();
+    n = r.u32(); m.accelerations.resize(n); for (auto& v : m.accelerations) v = r.f64();
+    n = r.u32(); m.effort.resize(n); for (auto& v : m.effort) v = r.f64();
+    m.time_from_start_sec = r.i32(); m.time_from_start_nsec = r.i32();
+    return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static JointTrajectoryPoint deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct JointTrajectory {
+  static constexpr const char* TYPE = "trajectory_msgs/JointTrajectory";
+  static constexpr const char* MD5 = "65b4f94a94d1ed67169da35a02f33d3f";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nstring[] joint_names\ntrajectory_msgs/JointTrajectoryPoint[] points\n";
+  std_msgs::Header header;
+  std::vector<std::string> joint_names;
+  std::vector<JointTrajectoryPoint> points;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w);
+    w.u32((uint32_t)joint_names.size()); for (auto& s : joint_names) w.str(s);
+    w.u32((uint32_t)points.size()); for (auto& p : points) p.write(w);
+    return w.b;
+  }
+  static JointTrajectory deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); JointTrajectory m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.joint_names.resize(n); for (auto& s : m.joint_names) s = r.str();
+    n = r.u32(); m.points.resize(n); for (auto& p : m.points) p = JointTrajectoryPoint::read(r);
+    return m;
+  }
+};
+
+struct MultiDOFJointTrajectoryPoint {
+  static constexpr const char* TYPE = "trajectory_msgs/MultiDOFJointTrajectoryPoint";
+  static constexpr const char* MD5 = "3ebe08d1abd5b65862d50e09430db776";
+  static constexpr const char* DEFINITION =
+      "geometry_msgs/Transform[] transforms\ngeometry_msgs/Twist[] velocities\n"
+      "geometry_msgs/Twist[] accelerations\nduration time_from_start\n";
+  std::vector<geometry_msgs::Transform> transforms;
+  std::vector<geometry_msgs::Twist> velocities, accelerations;
+  int32_t time_from_start_sec = 0, time_from_start_nsec = 0;
+  void write(Writer& w) const {
+    w.u32((uint32_t)transforms.size()); for (auto& t : transforms) t.write(w);
+    w.u32((uint32_t)velocities.size()); for (auto& t : velocities) t.write(w);
+    w.u32((uint32_t)accelerations.size()); for (auto& t : accelerations) t.write(w);
+    w.i32(time_from_start_sec); w.i32(time_from_start_nsec);
+  }
+  static MultiDOFJointTrajectoryPoint read(Reader& r) {
+    MultiDOFJointTrajectoryPoint m;
+    uint32_t n = r.u32(); m.transforms.resize(n); for (auto& t : m.transforms) t = geometry_msgs::Transform::read(r);
+    n = r.u32(); m.velocities.resize(n); for (auto& t : m.velocities) t = geometry_msgs::Twist::read(r);
+    n = r.u32(); m.accelerations.resize(n); for (auto& t : m.accelerations) t = geometry_msgs::Twist::read(r);
+    m.time_from_start_sec = r.i32(); m.time_from_start_nsec = r.i32();
+    return m;
+  }
+  std::vector<uint8_t> serialize() const { Writer w; write(w); return w.b; }
+  static MultiDOFJointTrajectoryPoint deserialize(const std::vector<uint8_t>& b) { Reader r(b); return read(r); }
+};
+
+struct MultiDOFJointTrajectory {
+  static constexpr const char* TYPE = "trajectory_msgs/MultiDOFJointTrajectory";
+  static constexpr const char* MD5 = "ef145a45a5f47b77b7f5cdde4b16c942";
+  static constexpr const char* DEFINITION =
+      "std_msgs/Header header\nstring[] joint_names\n"
+      "trajectory_msgs/MultiDOFJointTrajectoryPoint[] points\n";
+  std_msgs::Header header;
+  std::vector<std::string> joint_names;
+  std::vector<MultiDOFJointTrajectoryPoint> points;
+  std::vector<uint8_t> serialize() const {
+    Writer w; header.write(w);
+    w.u32((uint32_t)joint_names.size()); for (auto& s : joint_names) w.str(s);
+    w.u32((uint32_t)points.size()); for (auto& p : points) p.write(w);
+    return w.b;
+  }
+  static MultiDOFJointTrajectory deserialize(const std::vector<uint8_t>& b) {
+    Reader r(b); MultiDOFJointTrajectory m; m.header = std_msgs::Header::read(r);
+    uint32_t n = r.u32(); m.joint_names.resize(n); for (auto& s : m.joint_names) s = r.str();
+    n = r.u32(); m.points.resize(n); for (auto& p : m.points) p = MultiDOFJointTrajectoryPoint::read(r);
+    return m;
+  }
+};
+
+}  // namespace trajectory_msgs
 
 // ===== noros/actionlib_msgs.hpp =====
 // actionlib_msgs.hpp — the standard action bookkeeping messages.

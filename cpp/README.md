@@ -41,6 +41,13 @@ Linux, macOS, WSL, and native Windows**. On Windows it uses Winsock2 (`WSAStartu
 is handled for you); everywhere else it uses BSD sockets. The only platform
 difference you touch is the link flag above.
 
+## Dependencies
+
+**None beyond a standard C++17 toolchain.** No ROS, no Boost, no third-party
+packages — just the compiler and the OS's own sockets/threads (`-pthread` on
+POSIX, `-lws2_32` on MinGW, auto-linked on MSVC). CMake ≥ 3.10 is optional, only
+to build the bundled examples. Full details in [`DEPENDENCIES.md`](DEPENDENCIES.md).
+
 ## Hello, topics
 
 **Publisher** (`talker.cpp`):
@@ -97,17 +104,37 @@ into each example — demonstrating exactly the integration described above.
 | `stamped_pub.cpp` / `stamped_sub.cpp` (+ `sensor_reading.hpp`) | a message with a `std_msgs::Header` |
 | `add_two_ints_server.cpp` / `add_two_ints_client.cpp` (+ `add_two_ints.hpp`) | a service server + client |
 | `fibonacci_server.cpp` / `fibonacci_client.cpp` (+ `fibonacci_action.hpp`) | an action server + client |
+| `params_example.cpp` | parameters get / set / has / delete |
+| `udp_listener.cpp` | subscribe over UDPROS |
 | `nr_roscore.cpp` | run your own ROS master (roscore) + `/rosout` aggregator |
 
-Run each as `./build/<name>`. For UDPROS, pass `"udpros"` as the 3rd `Subscriber`
-arg (see below); for parameters use the `noros::get_param`/`set_param` API.
+These mirror the Python examples one-for-one (same names, same behaviour), so the
+two libraries stay in lock-step. Every example calls `noros::set_master_uri(...)`
+and `noros::set_hostname(...)` **before** `init_node` (falling back to
+`$ROS_MASTER_URI` / `$ROS_HOSTNAME`, else a local roscore).
+
+Run each as `./build/<name>`.
 
 ## Messages
 
-Built-ins: `std_msgs::{String,Bool,Int32,Int64,Float32,Float64,Header,ColorRGBA}`,
-`geometry_msgs::{Vector3,Point,Quaternion,Twist,Pose,PoseStamped}`,
-`sensor_msgs::{Image,CompressedImage,PointField,PointCloud2}`. Each provides
-`TYPE`, `MD5`, `DEFINITION` and `serialize()` / `deserialize()`.
+Built-in catalog (each provides `TYPE`, `MD5`, `DEFINITION` and
+`serialize()`/`deserialize()`; every md5 matches `rosmsg md5`):
+
+- `std_msgs::` String, Bool, Byte, Char, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, Empty, Time, Duration, Header, ColorRGBA
+- `geometry_msgs::` Vector3, Point, Point32, Quaternion, Pose, PoseStamped, PoseArray, Twist, TwistStamped, Accel, Wrench, Transform, TransformStamped, Polygon, PoseWithCovariance, TwistWithCovariance
+- `sensor_msgs::` Image, CompressedImage, PointField, PointCloud2, Imu, LaserScan, JointState, NavSatFix, NavSatStatus, Range, Temperature, MagneticField, RegionOfInterest, CameraInfo
+- `nav_msgs::` Odometry, Path, OccupancyGrid, MapMetaData, GridCells
+- `diagnostic_msgs::` KeyValue, DiagnosticStatus, DiagnosticArray
+- `trajectory_msgs::` JointTrajectory, JointTrajectoryPoint, MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint
+- `actionlib_msgs::` GoalID, GoalStatus, GoalStatusArray
+
+This is the **same 64-type catalog as the Python `noros.msg`** — the two
+libraries are in lock-step. Every md5 matches `rosmsg md5`, and all 64 types plus
+a custom message have been round-tripped through a real `roscore` and decoded by
+genuine `rospy` subscribers.
+
+Headers: `noros/{std_msgs,geometry_msgs,sensor_msgs,nav_msgs,diagnostic_msgs,trajectory_msgs,actionlib_msgs}.hpp`
+(all pulled in by `noros.hpp`).
 
 Add your own by writing a small struct with those three static strings plus the
 two codec functions (use `noros::Writer` / `noros::Reader`). See
