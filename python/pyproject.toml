@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "noros"
+version = "0.1.0"
+description = "A ROS client library (topics, services, actions, parameters) that speaks the ROS wire protocol with no ROS installed"
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "MIT" }
+authors = [{ name = "iRAP Robot, KMUTNB" }]
+keywords = ["ros", "robotics", "tcpros", "udpros", "rospy", "xmlrpc", "pubsub"]
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/NonStopBle/noros"
+Repository = "https://github.com/NonStopBle/noros"
+
+[tool.setuptools]
+packages = ["noros"]

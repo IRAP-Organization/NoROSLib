@@ -1,0 +1,200 @@
+# noros (C++)
+
+A roscpp-flavoured ROS client library — **no ROS installed, single header, links
+zero ROS libraries.** C++17 + POSIX sockets + pthreads. It speaks the real ROS
+wire protocols (XML-RPC master/slave + TCPROS/UDPROS), so a real `roscore` and
+real ROS nodes treat it as a legitimate node.
+
+## Install: copy one file
+
+The entire library is a single header: [`include/noros.hpp`](include/noros.hpp).
+Copy it into your project's include path. That's the whole install.
+
+Because it's header-only (stb-style), the implementation must be compiled in
+**exactly one** translation unit. In one `.cpp` of your project:
+
+```cpp
+#define NOROS_IMPLEMENTATION
+#include "noros.hpp"
+```
+
+In every **other** file, just `#include "noros.hpp"` (no define). Compile with
+C++17 and link the platform's socket/thread libs:
+
+```bash
+# Linux / macOS / WSL
+g++ -std=c++17 -pthread your_app.cpp noros_impl.cpp -o your_app
+
+# Windows, MinGW
+g++ -std=c++17 your_app.cpp noros_impl.cpp -o your_app.exe -lws2_32
+
+# Windows, MSVC (ws2_32 is auto-linked via #pragma comment)
+cl /std:c++17 /EHsc your_app.cpp noros_impl.cpp
+```
+
+(where `noros_impl.cpp` is the one file that defines `NOROS_IMPLEMENTATION`.)
+
+### Platforms
+
+noros ships a Winsock/POSIX compatibility layer, so the **same header builds on
+Linux, macOS, WSL, and native Windows**. On Windows it uses Winsock2 (`WSAStartup`
+is handled for you); everywhere else it uses BSD sockets. The only platform
+difference you touch is the link flag above.
+
+## Hello, topics
+
+**Publisher** (`talker.cpp`):
+
+```cpp
+#include "noros.hpp"
+int main() {
+  noros::init_node("talker");
+  noros::Publisher<std_msgs::String> pub("/chatter");
+  noros::Rate rate(10);
+  while (noros::ok()) {
+    std_msgs::String m; m.data = "hello world";
+    pub.publish(m);
+    rate.sleep();
+  }
+}
+```
+
+**Subscriber** (`listener.cpp`):
+
+```cpp
+#include "noros.hpp"
+int main() {
+  noros::init_node("listener");
+  noros::Subscriber<std_msgs::String> sub("/chatter",
+      [](const std_msgs::String& m){ noros::loginfo("I heard: " + m.data); });
+  noros::spin();
+}
+```
+
+Point at a master (defaults to `http://127.0.0.1:11311`) via `$ROS_MASTER_URI` /
+`$ROS_HOSTNAME`, or from code: `noros::set_master_uri(...)` / `set_hostname(...)`
+before `init_node`.
+
+## Build the examples
+
+```bash
+cd cpp
+cmake -S . -B build && cmake --build build -j
+./build/talker        # ./build/listener, add_two_ints_*, stamped_*, fibonacci_*, ...
+```
+
+The CMake build compiles the implementation once (`noros_impl.cpp`) and links it
+into each example — demonstrating exactly the integration described above.
+
+### All examples (`cpp/examples/`)
+
+| File | What it does |
+|---|---|
+| `talker.cpp` | publish `std_msgs/String` at 10 Hz |
+| `listener.cpp` | subscribe `std_msgs/String` |
+| `custom_msg.cpp` | define + publish your own message struct |
+| `md5_discovery.cpp` | subscribe with a wrong md5, recover automatically |
+| `stamped_pub.cpp` / `stamped_sub.cpp` (+ `sensor_reading.hpp`) | a message with a `std_msgs::Header` |
+| `add_two_ints_server.cpp` / `add_two_ints_client.cpp` (+ `add_two_ints.hpp`) | a service server + client |
+| `fibonacci_server.cpp` / `fibonacci_client.cpp` (+ `fibonacci_action.hpp`) | an action server + client |
+| `nr_roscore.cpp` | run your own ROS master (roscore) + `/rosout` aggregator |
+
+Run each as `./build/<name>`. For UDPROS, pass `"udpros"` as the 3rd `Subscriber`
+arg (see below); for parameters use the `noros::get_param`/`set_param` API.
+
+## Messages
+
+Built-ins: `std_msgs::{String,Bool,Int32,Int64,Float32,Float64,Header,ColorRGBA}`,
+`geometry_msgs::{Vector3,Point,Quaternion,Twist,Pose,PoseStamped}`,
+`sensor_msgs::{Image,CompressedImage,PointField,PointCloud2}`. Each provides
+`TYPE`, `MD5`, `DEFINITION` and `serialize()` / `deserialize()`.
+
+Add your own by writing a small struct with those three static strings plus the
+two codec functions (use `noros::Writer` / `noros::Reader`). See
+`examples/custom_msg.cpp`, and `examples/sensor_reading.hpp` for a message with a
+`std_msgs::Header`.
+
+## Services
+
+A service is a struct with `TYPE` + `MD5` and nested `Request` / `Response`. See
+`examples/add_two_ints.hpp`, or use built-in `std_srvs::{Empty,Trigger,SetBool}`.
+
+```cpp
+noros::ServiceServer<AddTwoInts> srv("/add_two_ints",
+    [](const AddTwoInts::Request& q, AddTwoInts::Response& r){ r.sum = q.a + q.b; return true; });
+
+noros::ServiceClient<AddTwoInts> c("/add_two_ints");
+AddTwoInts::Request q; q.a = 3; q.b = 4; AddTwoInts::Response r;
+c.call(q, r);   // r.sum == 7
+```
+
+## Actions (actionlib)
+
+An action is a traits struct exposing Goal/Result/Feedback + the wrapper types —
+see `examples/fibonacci_action.hpp`.
+
+```cpp
+noros::SimpleActionClient<fib::Fibonacci> c("/fibonacci");
+c.waitForServer(8.0);
+fib::Goal g; g.order = 10;
+c.sendGoal(g, [](const fib::Feedback& f){ /* ... */ });
+c.waitForResult(15.0); c.getResult().sequence;   // + getState(), cancelGoal()
+```
+
+## Parameters
+
+```cpp
+noros::set_param("/demo/rate", 30);                 // int/double/bool/string
+int rate = noros::get_param_or<int>("/demo/rate", 10);
+noros::has_param("/demo/rate"); noros::delete_param("/demo/rate");
+```
+
+## UDPROS (unreliable transport)
+
+```cpp
+noros::Subscriber<std_msgs::String> sub("/chatter", cb, "udpros");  // 3rd arg
+```
+
+Publishers offer UDPROS automatically.
+
+## Run your own ROS master — `nr_roscore`
+
+noros can also *be* the roscore. `examples/nr_roscore.cpp` is a standalone ROS
+master + parameter server that real ROS nodes and noros nodes register with.
+
+```bash
+./build/nr_roscore                 # binds :11311, advertises this host
+./build/nr_roscore --port 11322
+ROS_MASTER_URI=http://host:11311 ROS_HOSTNAME=host ./build/nr_roscore
+```
+
+Config precedence — **port:** `--port` › `$ROS_MASTER_URI` › `11311`;
+**hostname:** `--host` › `$ROS_HOSTNAME` › `$ROS_IP` › system hostname. Implements
+the Master API (register/lookup/getSystemState/…) + a full **nested-dict**
+Parameter Server, and auto-starts a `/rosout` → `/rosout_agg` aggregator (disable
+with `--no-rosout`). Verified: two real `rostopic pub`/`echo` nodes talk through
+it; `rosservice` / `rosparam` (incl. nested dicts) / `rostopic list`/`info` work;
+stress-tested with the topic matrix, a service flood, and a registration storm.
+
+## Automatic md5 discovery
+
+Subscribe with a wrong/unknown md5 and noros parses the publisher's real md5 from
+the rejection and reconnects (`>>> DISCOVERED real md5 ...`). See
+`examples/md5_discovery.cpp`.
+
+## Repo layout
+
+```
+cpp/
+  include/noros.hpp      <- THE single header (copy this)
+  examples/*.cpp         <- pubsub, services, actions, ... (each #include "noros.hpp")
+  noros_impl.cpp         <- the one TU that #define NOROS_IMPLEMENTATION
+  CMakeLists.txt         <- builds the examples
+  dev/                   <- source of truth (contributors only)
+    include/noros/*.hpp  <- split declaration headers
+    src/*.cpp            <- split implementation
+    tools/amalgamate.py  <- regenerates include/noros.hpp from dev/
+```
+
+The single header is **generated** from `dev/`. To change the library, edit
+`dev/` and run `python3 dev/tools/amalgamate.py`.
