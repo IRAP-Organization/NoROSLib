@@ -1,5 +1,7 @@
 # NoROSLib
 
+<img width="516" height="483" alt="99070ecd-ab42-4ee1-8918-6a1bd6a50703-removebg-preview" src="https://github.com/user-attachments/assets/c398c07a-1c5f-4cdb-b0a2-8c4068b6b208" />
+
 **A lightweight ROS client library that needs no ROS installed.** NoROSLib (the
 library you import is called `noros`) impersonates a ROS node by speaking the real
 ROS wire protocols directly — the XML-RPC master/slave API and TCPROS/UDPROS — so
