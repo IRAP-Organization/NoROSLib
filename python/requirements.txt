@@ -14,5 +14,16 @@
 #   re, os, sys, time, argparse     supporting stdlib modules
 #
 # All of the above ship with Python — `import noros` needs no third-party
-# packages. (OpenCV / numpy are NOT required; only the optional webcam demo
-# uses OpenCV, and that is a demo, not a dependency of the library.)
+# packages.
+#
+# ---------------------------------------------------------------------------
+# OPTIONAL — not required by the library, only by the two webcam DEMOS
+# (examples/webcam_pub.py and examples/ros_image_viewer.py). Install these
+# yourself ONLY if you want to run those demos; leave them commented otherwise:
+#
+#   opencv-python        # webcam_pub.py (capture + encode), ros_image_viewer.py
+#   numpy                # ros_image_viewer.py (frame buffers)
+#
+# ros_image_viewer.py is a REAL ROS node, so it also needs rospy + cv_bridge,
+# which come from a system ROS install (apt), not pip.
+# ---------------------------------------------------------------------------
