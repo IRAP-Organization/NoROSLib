@@ -6,8 +6,7 @@ Call it from real ROS:  rosservice call /add_two_ints "a: 3
 b: 4"
 Or from the noros client: python3 add_two_ints_client.py 3 4
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import define_service
 

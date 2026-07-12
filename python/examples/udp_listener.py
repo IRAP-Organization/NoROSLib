@@ -7,8 +7,7 @@ Then: python3 udp_listener.py
 
 Only the transport hint changes vs a normal Subscriber.
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import msg
 

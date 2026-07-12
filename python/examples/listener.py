@@ -4,8 +4,7 @@
 Run a roscore, then:   python3 listener.py
 Feed it with real ROS:  rostopic pub -r 10 /chatter std_msgs/String "data: hi"
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import msg
 

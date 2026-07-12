@@ -4,8 +4,7 @@
 Run a roscore, then:   python3 talker.py
 Watch it with real ROS: rostopic echo /chatter
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import msg
 

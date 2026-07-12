@@ -61,7 +61,9 @@ Cross-check with real ROS: `rostopic echo /chatter`, or
 
 ## All examples (`python/examples/`)
 
-Run any with `python3 python/examples/<name>.py` (a master up, `ROS_MASTER_URI` set).
+The examples just `import noros`, so **install it first** (`pip install noros`, or
+`pip install ./python` from this repo). Then run any with
+`python3 python/examples/<name>.py` (a master up, `ROS_MASTER_URI` set).
 Every example calls `noros.set_master_uri(...)` and `noros.set_hostname(...)`
 **before** `init_node` (falling back to `$ROS_MASTER_URI` / `$ROS_HOSTNAME`, else
 a local roscore). The core examples mirror the C++ ones one-for-one.

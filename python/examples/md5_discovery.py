@@ -10,8 +10,7 @@ and data flows -- no "Dropping connection" left standing.
 Run:  rostopic pub -r 5 /disc std_msgs/String "data: real ros here"
 Then: python3 md5_discovery.py
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import msg  # registers std_msgs/String so post-discovery decode works
 

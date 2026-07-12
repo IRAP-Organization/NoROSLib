@@ -7,7 +7,6 @@ Works against the noros server (add_two_ints_server.py) OR a real ROS server
     python3 add_two_ints_client.py 3 4     ->   3 + 4 = 7
 """
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
 import noros
 from noros import define_service
 

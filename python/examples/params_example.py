@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """noros parameter server usage. Cross-check with `rosparam get/set/list`."""
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 
 

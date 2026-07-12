@@ -9,8 +9,7 @@ sensor driver would.
 Run a roscore, then:  python3 stamped_pub.py
 See it (noros side):   python3 stamped_sub.py
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import define_message
 

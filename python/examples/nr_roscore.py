@@ -10,8 +10,6 @@ Configuration (same knobs as a real roscore):
   * hostname : --host, else $ROS_HOSTNAME, else $ROS_IP, else the system hostname
 Then point nodes at it:  export ROS_MASTER_URI=http://<host>:<port>
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
 from noros.roscore import main
 
 if __name__ == "__main__":

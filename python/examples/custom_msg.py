@@ -6,8 +6,7 @@ A message is just its `.msg` text -- register it and noros derives the md5sum
 under our own package name and publish it. Because the md5 depends only on the
 `.msg` text, a real ROS node subscribing to geometry_msgs/Pose2D would accept it.
 """
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
+import os
 import noros
 from noros import define_message
 

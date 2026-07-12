@@ -5,7 +5,6 @@ real ROS: rosrun actionlib_tutorials fibonacci_server
     python3 fibonacci_client.py 10
 """
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
 import noros
 from noros import define_action, SimpleActionClient
 

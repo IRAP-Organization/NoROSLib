@@ -10,7 +10,6 @@ Run a roscore, then:  python3 webcam_pub.py
 Receive with real ROS: ros_image_viewer.py (cv2.imshow)
 """
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # locate the noros package (../)
 import cv2
 
 import noros
