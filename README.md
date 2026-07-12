@@ -319,10 +319,10 @@ set. Python: `python3 python/examples/<name>.py`. C++: build with CMake, then
 | **params_example** | parameters: get/set/has/delete (Python also search/list) | ✅ | ✅ |
 | **udp_listener** | subscribe over **UDPROS** | ✅ | ✅ |
 | **nr_roscore** | run your own ROS master (roscore) | ✅ | ✅ |
-| **webcam_pub** | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` | ✅ † | ✅ † |
-| **image viewer** | subscribe those images and display them | ✅ † `ros_image_viewer.py` (real rospy) | ✅ † `image_viewer.cpp` (noros) |
+| **webcam_pub** | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` | ✅  | ✅  |
+| **image viewer** | subscribe those images and display them | ✅  `ros_image_viewer.py` (real rospy) | ✅  `image_viewer.cpp` (noros) |
 
-† The webcam publisher and image viewer **require OpenCV** (`cv2` in Python,
+ The webcam publisher and image viewer **require OpenCV** (`cv2` in Python,
 `<opencv2/opencv.hpp>` in C++). **OpenCV is not a dependency of noros** — the core
 library needs nothing beyond the standard library / a C++17 toolchain; only these
 optional demos use it. The C++ CMake build compiles them only if OpenCV is found.
