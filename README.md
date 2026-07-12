@@ -89,6 +89,12 @@ pip install noros           # from PyPI (once published)
 pip install ./python        # from this repo
 ```
 
+**Dependencies: none.** noros is pure **Python 3.6+ standard library** — it talks
+to ROS using only `xmlrpc`, `socket`, `socketserver`, `threading`, `struct` and
+`hashlib`, all built into CPython. [`python/requirements.txt`](python/requirements.txt)
+is intentionally empty and documents exactly that. (OpenCV/numpy are needed *only*
+by the optional webcam demos, never by the library.)
+
 Then:
 
 ```python
@@ -116,6 +122,13 @@ Copy it into your include path. Put the implementation in **one** `.cpp`:
 ```
 
 Everywhere else just `#include "noros.hpp"`. Compile with `-std=c++17 -pthread`.
+
+**Dependencies: none beyond a C++17 toolchain.** No ROS, no Boost, no third-party
+libraries — just the compiler and the OS's own sockets/threads: link `-pthread`
+on Linux/macOS/WSL, `-lws2_32` on MinGW (MSVC auto-links Winsock). CMake ≥ 3.10 is
+optional, only to build the bundled examples. Full details in
+[`cpp/DEPENDENCIES.md`](cpp/DEPENDENCIES.md). (OpenCV is needed *only* by the two
+optional webcam examples, never by the library.)
 
 ```cpp
 #include "noros.hpp"
