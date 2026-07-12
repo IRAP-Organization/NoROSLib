@@ -23,6 +23,30 @@ Python • C++ • Windows • Linux • macOS
   <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros">
   <img src="https://img.shields.io/badge/License-MIT-green">
 </p>
+
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/c398c07a-1c5f-4cdb-b0a2-8c4068b6b208"
+    alt="NoROSLib Logo"
+    width="260">
+</p>
+
+<h1 align="center">NoROSLib</h1>
+
+<p align="center">
+<b>A lightweight ROS client library that needs no ROS installed.</b>
+</p>
+
+<p align="center">
+Python • C++ • Windows • Linux • macOS
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.6+-3776AB?logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/C++-17-00599C?logo=cplusplus&logoColor=white">
+  <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros">
+  <img src="https://img.shields.io/badge/License-MIT-green">
+</p>
 **A lightweight ROS client library that needs no ROS installed.** NoROSLib (the
 library you import is called `noros`) impersonates a ROS node by speaking the real
 ROS wire protocols directly — the XML-RPC master/slave API and TCPROS/UDPROS — so
