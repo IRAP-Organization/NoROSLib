@@ -29,3 +29,18 @@ foreach(ex talker listener custom_msg md5_discovery
   target_include_directories(${ex} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(${ex} noros)
 endforeach()
+
+# Optional OpenCV demos: webcam_pub + image_viewer. OpenCV is NOT a dependency of
+# noros -- the core links zero third-party libs. These two examples build ONLY if
+# OpenCV happens to be installed; the rest of the library never needs it.
+find_package(OpenCV QUIET)
+if(OpenCV_FOUND)
+  foreach(ex webcam_pub image_viewer)
+    add_executable(${ex} examples/${ex}.cpp)
+    target_include_directories(${ex} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(${ex} noros ${OpenCV_LIBS})
+  endforeach()
+  message(STATUS "noros: OpenCV found -> building webcam_pub + image_viewer")
+else()
+  message(STATUS "noros: OpenCV not found -> skipping webcam_pub + image_viewer (optional)")
+endif()

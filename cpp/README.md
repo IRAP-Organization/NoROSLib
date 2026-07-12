@@ -106,7 +106,20 @@ into each example — demonstrating exactly the integration described above.
 | `fibonacci_server.cpp` / `fibonacci_client.cpp` (+ `fibonacci_action.hpp`) | an action server + client |
 | `params_example.cpp` | parameters get / set / has / delete |
 | `udp_listener.cpp` | subscribe over UDPROS |
+| `webcam_pub.cpp` † | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` |
+| `image_viewer.cpp` † | subscribe those images and show them (`cv::imshow`) |
 | `nr_roscore.cpp` | run your own ROS master (roscore) + `/rosout` aggregator |
+
+† `webcam_pub` and `image_viewer` **require OpenCV** (`cv::VideoCapture` /
+`cv::imencode` / `cv::imshow`). **OpenCV is not a dependency of noros** — the core
+library links zero third-party packages; only these two optional demos need it.
+The CMake build compiles them **only if OpenCV is found** (otherwise it prints a
+notice and skips them). By hand:
+
+```bash
+g++ -std=c++17 examples/webcam_pub.cpp noros_impl.cpp -o webcam_pub \
+    -pthread $(pkg-config --cflags --libs opencv4)
+```
 
 These mirror the Python examples one-for-one (same names, same behaviour), so the
 two libraries stay in lock-step. Every example calls `noros::set_master_uri(...)`
