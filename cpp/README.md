@@ -136,10 +136,53 @@ genuine `rospy` subscribers.
 Headers: `noros/{std_msgs,geometry_msgs,sensor_msgs,nav_msgs,diagnostic_msgs,trajectory_msgs,actionlib_msgs}.hpp`
 (all pulled in by `noros.hpp`).
 
-Add your own by writing a small struct with those three static strings plus the
-two codec functions (use `noros::Writer` / `noros::Reader`). See
-`examples/custom_msg.cpp`, and `examples/sensor_reading.hpp` for a message with a
-`std_msgs::Header`.
+### How to use them
+
+Each type is a plain struct — construct it, set fields, publish. Nested messages,
+`std::vector<>` arrays, `std_msgs::Header`, and `time`/`duration` all work:
+
+```cpp
+#include "noros.hpp"
+
+// simple scalar wrappers
+std_msgs::Int32   i;  i.data = 7;
+std_msgs::Float64 f;  f.data = 1.5;
+std_msgs::String  s;  s.data = "hello";
+
+// nested messages
+geometry_msgs::Twist t;
+t.linear.x  = 1.0;          // Vector3 linear
+t.angular.z = 0.5;          // Vector3 angular
+
+// a Header-stamped message (time is stored as stamp_sec / stamp_nsec)
+nav_msgs::Odometry o;
+o.header.seq = 0;
+o.header.stamp_now();       // fills stamp_sec / stamp_nsec with wall time
+o.header.frame_id = "odom";
+o.child_frame_id  = "base_link";
+o.pose.pose.position.x = 1.5;   // nested-in-nested
+o.twist.twist.linear.x = 0.3;
+
+// variable-length arrays are std::vector; uint8[] is std::vector<uint8_t>
+sensor_msgs::JointState js;
+js.name     = {"j1", "j2"};
+js.position = {0.1, 0.2};
+sensor_msgs::Image img;
+img.data = {0x00, 0x01, 0x02};
+
+// publish / subscribe
+noros::Publisher<nav_msgs::Odometry> pub("/odom");
+pub.publish(o);
+noros::Subscriber<nav_msgs::Odometry> sub("/odom",
+    [](const nav_msgs::Odometry& m){ noros::loginfo(m.child_frame_id); });
+```
+
+### Your own message types
+
+Not in the catalog? Write a small struct with the three static strings
+(`TYPE`, `MD5`, `DEFINITION`) plus `serialize()`/`deserialize()` using
+`noros::Writer` / `noros::Reader`. See `examples/custom_msg.cpp`, and
+`examples/sensor_reading.hpp` for one with a `std_msgs::Header`.
 
 ## Services
 

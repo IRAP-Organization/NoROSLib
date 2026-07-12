@@ -92,22 +92,100 @@ noros.init_node("my_node")
 
 ## Messages
 
-Built-ins live in `noros.msg`, covering **std_msgs, geometry_msgs, sensor_msgs,
-nav_msgs, diagnostic_msgs, trajectory_msgs** and actionlib_msgs — e.g. `String`,
-`Twist`, `Odometry`, `Imu`, `JointState`, `LaserScan`, `DiagnosticArray`,
-`JointTrajectory`, `Path`, `OccupancyGrid`, `NavSatFix`, … (or by full name via
-`msg.get("nav_msgs/Odometry")`); every md5sum matches `rosmsg md5`. Add your own
-from `.msg` text — noros derives the md5sum and wire codec:
+Built-ins live in `noros.msg`. Every md5sum matches `rosmsg md5` exactly, so they
+interoperate with real ROS nodes. This is the **same 64-type catalog as the C++
+library** — the two are in lock-step.
+
+### The full catalog (64 types)
+
+| Package | Types |
+|---|---|
+| **std_msgs** (19) | `Bool`, `Byte`, `Char`, `ColorRGBA`, `Duration`, `Empty`, `Float32`, `Float64`, `Header`, `Int8`, `Int16`, `Int32`, `Int64`, `String`, `Time`, `UInt8`, `UInt16`, `UInt32`, `UInt64` |
+| **geometry_msgs** (16) | `Accel`, `Point`, `Point32`, `Polygon`, `Pose`, `PoseArray`, `PoseStamped`, `PoseWithCovariance`, `Quaternion`, `Transform`, `TransformStamped`, `Twist`, `TwistStamped`, `TwistWithCovariance`, `Vector3`, `Wrench` |
+| **sensor_msgs** (14) | `CameraInfo`, `CompressedImage`, `Image`, `Imu`, `JointState`, `LaserScan`, `MagneticField`, `NavSatFix`, `NavSatStatus`, `PointCloud2`, `PointField`, `Range`, `RegionOfInterest`, `Temperature` |
+| **nav_msgs** (5) | `GridCells`, `MapMetaData`, `OccupancyGrid`, `Odometry`, `Path` |
+| **diagnostic_msgs** (3) | `DiagnosticArray`, `DiagnosticStatus`, `KeyValue` |
+| **trajectory_msgs** (4) | `JointTrajectory`, `JointTrajectoryPoint`, `MultiDOFJointTrajectory`, `MultiDOFJointTrajectoryPoint` |
+| **actionlib_msgs** (3) | `GoalID`, `GoalStatus`, `GoalStatusArray` |
+
+### How to use them
+
+Get a message class two ways — attribute or full name:
+
+```python
+from noros import msg
+
+s   = msg.String                     # by attribute
+odo = msg.get("nav_msgs/Odometry")   # by full "pkg/Type" name
+```
+
+Construct with keyword fields, or set them afterwards. Nested messages, arrays,
+`Header`, and `time`/`duration` all just work:
+
+```python
+from noros import msg
+
+# simple scalar wrappers
+msg.Int32(data=7)
+msg.Float64(data=1.5)
+msg.String(data="hello")
+
+# nested messages + arrays
+t = msg.Twist()
+t.linear  = msg.Vector3(x=1.0, y=0.0, z=0.0)   # nested
+t.angular.z = 0.5                               # or reach in directly
+
+# a Header-stamped message (time is a (secs, nsecs) tuple)
+import noros
+o = msg.Odometry()
+o.header.seq = 0
+o.header.stamp = noros.now()                    # (secs, nsecs)
+o.header.frame_id = "odom"
+o.child_frame_id = "base_link"
+o.pose.pose.position.x = 1.5                     # nested-in-nested
+o.twist.twist.linear.x = 0.3
+
+# variable-length arrays are plain Python lists; uint8[] is bytes
+js = msg.JointState()
+js.name     = ["j1", "j2"]
+js.position = [0.1, 0.2]
+img = msg.Image()
+img.data = b"\x00\x01\x02"                       # uint8[] -> bytes
+```
+
+Publish / subscribe with any of them:
+
+```python
+import noros
+from noros import msg
+
+pub = noros.Publisher("/odom", msg.Odometry)          # advertise the type
+pub.publish(o)
+
+noros.Subscriber("/odom", msg.Odometry,
+                 lambda m: noros.loginfo(m.child_frame_id))
+```
+
+### Your own message types
+
+Not in the catalog? Define it in one line from `.msg` text — noros derives the
+md5sum and wire codec. Nesting built-ins (or your own registered types) works;
+a `std_msgs/Header` first field is handled for you:
 
 ```python
 from noros import define_message
 
 Pose2D = define_message("my_pkg/Pose2D", "float64 x\nfloat64 y\nfloat64 theta")
 p = Pose2D(x=1.0, y=2.0)
+
+Reading = define_message("my_pkg/Reading", """
+    std_msgs/Header header
+    float64 value
+    geometry_msgs/Point where
+""")
 ```
 
-A `std_msgs/Header` first field works out of the box (stamped data). See
-`examples/stamped_pub.py` / `stamped_sub.py`.
+See `examples/custom_msg.py` and `examples/stamped_pub.py` / `stamped_sub.py`.
 
 ## Services
 

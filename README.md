@@ -218,15 +218,21 @@ exactly, so they interoperate with real ROS nodes. Python: `from noros import ms
 then `msg.Odometry` (or `msg.get("nav_msgs/Odometry")`). C++: `#include "noros.hpp"`
 then `nav_msgs::Odometry`.
 
+The full catalog is **64 types**, identical in Python and C++:
+
 | Package | Types |
 |---|---|
-| **std_msgs** | Bool, Byte, Char, Int8–64, UInt8–64, Float32/64, String, Empty, Time, Duration, Header, ColorRGBA |
-| **geometry_msgs** | Vector3, Point, Point32, Quaternion, Pose, PoseStamped, PoseArray, Twist, TwistStamped, Accel, Wrench, Transform, TransformStamped, Polygon, PoseWithCovariance, TwistWithCovariance |
-| **sensor_msgs** | Image, CompressedImage, PointField, PointCloud2, Imu, LaserScan, JointState, NavSatFix, NavSatStatus, Range, Temperature, MagneticField, RegionOfInterest, CameraInfo |
-| **nav_msgs** | Odometry, Path, OccupancyGrid, MapMetaData, GridCells |
-| **diagnostic_msgs** | KeyValue, DiagnosticStatus, DiagnosticArray |
-| **trajectory_msgs** | JointTrajectory, JointTrajectoryPoint, MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint |
-| **actionlib_msgs** | GoalID, GoalStatus, GoalStatusArray |
+| **std_msgs** (19) | Bool, Byte, Char, ColorRGBA, Duration, Empty, Float32, Float64, Header, Int8, Int16, Int32, Int64, String, Time, UInt8, UInt16, UInt32, UInt64 |
+| **geometry_msgs** (16) | Accel, Point, Point32, Polygon, Pose, PoseArray, PoseStamped, PoseWithCovariance, Quaternion, Transform, TransformStamped, Twist, TwistStamped, TwistWithCovariance, Vector3, Wrench |
+| **sensor_msgs** (14) | CameraInfo, CompressedImage, Image, Imu, JointState, LaserScan, MagneticField, NavSatFix, NavSatStatus, PointCloud2, PointField, Range, RegionOfInterest, Temperature |
+| **nav_msgs** (5) | GridCells, MapMetaData, OccupancyGrid, Odometry, Path |
+| **diagnostic_msgs** (3) | DiagnosticArray, DiagnosticStatus, KeyValue |
+| **trajectory_msgs** (4) | JointTrajectory, JointTrajectoryPoint, MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint |
+| **actionlib_msgs** (3) | GoalID, GoalStatus, GoalStatusArray |
+
+Usage (constructing, nested fields, arrays, `Header`, publish/subscribe) is shown
+in **[python/README.md](python/README.md#messages)** and
+**[cpp/README.md](cpp/README.md#messages)**.
 
 **C++ and Python expose the identical 64-type catalog** — the same types under
 `msg.*` (Python) and the matching `pkg_msgs::*` structs (C++), every md5 matching
