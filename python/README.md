@@ -1,8 +1,10 @@
 # noros (Python)
 
-A rospy-flavoured ROS client library — **no ROS installed, pure Python stdlib.**
-It speaks the real ROS wire protocols (XML-RPC master/slave + TCPROS/UDPROS), so
-a real `roscore` and real ROS nodes treat it as a legitimate node.
+A rospy-flavoured ROS client library — **no ROS installed, no bridge, pure Python
+stdlib.** It speaks the real ROS wire protocols (XML-RPC master/slave +
+TCPROS/UDPROS) *directly*, so it connects to a **native, unmodified `roscore`** and
+real ROS nodes treat it as a legitimate node — **not** rosbridge/roslibpy, and
+nothing extra runs on the robot.
 
 ## Install
 

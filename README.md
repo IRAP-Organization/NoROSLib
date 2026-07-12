@@ -10,7 +10,7 @@
 <h1 align="center">NoROSLib</h1>
 
 <p align="center">
-<b>A lightweight ROS client library that needs no ROS installed.</b>
+<b>Talk to a native ROS&nbsp;1 <code>roscore</code> directly — no ROS install, no bridge.</b>
 </p>
 
 <p align="center">
@@ -23,14 +23,44 @@ Python • C++ • Windows • Linux • macOS
   <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros">
   <img src="https://img.shields.io/badge/License-MIT-green">
 </p>
-**A lightweight ROS client library that needs no ROS installed.** NoROSLib (the
-library you import is called `noros`) impersonates a ROS node by speaking the real
-ROS wire protocols directly — the XML-RPC master/slave API and TCPROS/UDPROS — so
-a real `roscore` and real ROS nodes treat it as a legitimate node. It links
-**zero ROS libraries**.
+**A lightweight ROS client library that needs no ROS installed — and no bridge.**
+NoROSLib (you import it as `noros`) speaks ROS 1's own wire protocol *directly*: it
+registers with the **ROS Master over XML-RPC** and exchanges messages over
+**TCPROS / UDPROS** — the very protocols `rospy` and `roscpp` use. So it connects
+**straight to a native, unmodified `roscore`**, and real ROS nodes see it as a
+legitimate ROS node. There is **no rosbridge, no roslibpy/WebSocket gateway, and
+nothing extra installed on the robot** — and it links **zero ROS libraries**.
 
-Available in **Python** (rospy-flavoured) and **C++** (roscpp-flavoured,
-single-header). Both are verified end-to-end against real ROS Noetic.
+This is a real, **wire-compatible** ROS client — it publishes/subscribes real
+topics, calls real services, runs real actions, and reads/writes real parameters
+on a genuine roscore. It is **not** a rospy look-alike that only talks to other
+NoROSLib programs. Available in **Python** (rospy-flavoured) and **C++**
+(roscpp-flavoured, single-header); both are verified end-to-end against real ROS
+Noetic — a real `rostopic echo` / `rosservice call` / `rosparam` sees it, and it
+sees them.
+
+## Native ROS — not a bridge
+
+NoROSLib is **not** rosbridge/roslibpy, and it does **not** need one. It runs no
+`rosbridge_server`, no WebSocket gateway, no translator process — on either side.
+It implements the ROS 1 protocols themselves (XML-RPC master/slave discovery +
+TCPROS/UDPROS transport), so from the robot's point of view a NoROSLib process is
+indistinguishable from a native `roscpp` / `rospy` node. Point it at the robot's
+`ROS_MASTER_URI` and go.
+
+| Approach | Bridge/server needed on the ROS side? | Speaks native ROS wire protocol? | Extra install on the robot |
+|---|:---:|:---:|:---:|
+| rosbridge + roslibpy | **Yes** — `rosbridge_server` | No — JSON over WebSocket | `rosbridge_suite` |
+| **NoROSLib** | **No** | **Yes** — XML-RPC + TCPROS/UDPROS | **None** |
+
+```
+   your machine (Windows / macOS / any Linux)          the robot (Ubuntu + ROS)
+   ┌───────────────────────────┐                       ┌────────────────────────┐
+   │  your app  +  noros        │   XML-RPC + TCPROS    │  roscore               │
+   │  (no ROS, no bridge)       │◄─────────────────────►│  native rospy/roscpp   │
+   └───────────────────────────┘   (the real ROS wire)  │  nodes (unmodified)    │
+                                                         └────────────────────────┘
+```
 
 ## Why NoROSLib?
 

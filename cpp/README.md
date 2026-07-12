@@ -1,9 +1,10 @@
 # noros (C++)
 
-A roscpp-flavoured ROS client library — **no ROS installed, single header, links
-zero ROS libraries.** C++17 + POSIX sockets + pthreads. It speaks the real ROS
-wire protocols (XML-RPC master/slave + TCPROS/UDPROS), so a real `roscore` and
-real ROS nodes treat it as a legitimate node.
+A roscpp-flavoured ROS client library — **no ROS installed, no bridge, single
+header, links zero ROS libraries.** C++17 + POSIX sockets + pthreads. It speaks the
+real ROS wire protocols (XML-RPC master/slave + TCPROS/UDPROS) *directly*, so it
+connects to a **native, unmodified `roscore`** and real ROS nodes treat it as a
+legitimate node — **not** rosbridge/roslibpy, and nothing extra runs on the robot.
 
 ## Install: copy one file
 
