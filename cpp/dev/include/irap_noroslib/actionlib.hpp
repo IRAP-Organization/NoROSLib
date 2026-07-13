@@ -53,6 +53,14 @@ class SimpleActionClient {
         fb_sub_(ns_ + "/feedback", [this](const typename Act::ActionFeedback& m) { on_feedback(m); }),
         res_sub_(ns_ + "/result", [this](const typename Act::ActionResult& m) { on_result(m); }) {}
 
+  // The goal-resend thread captures `this`, so it must not outlive us.
+  ~SimpleActionClient() {
+    { std::lock_guard<std::mutex> lk(mu_); done_ = true; }   // stop the resend loop
+    if (resend_.joinable()) resend_.join();
+  }
+  SimpleActionClient(const SimpleActionClient&) = delete;
+  SimpleActionClient& operator=(const SimpleActionClient&) = delete;
+
   bool waitForServer(double timeout_s = -1) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -71,6 +79,7 @@ class SimpleActionClient {
     ag.goal_id.id = detail::new_goal_id();
     detail::stamp_now(&ag.goal_id.stamp_sec, &ag.goal_id.stamp_nsec);
     ag.goal = goal;
+    if (resend_.joinable()) resend_.join();      // a previous goal's resender
     {
       std::lock_guard<std::mutex> lk(mu_);
       goal_id_ = ag.goal_id.id;
@@ -80,14 +89,15 @@ class SimpleActionClient {
     }
     // Resend until the server acks (status shows our id) or a result arrives,
     // covering the pub/sub connection race that would otherwise drop the goal.
-    std::thread([this, ag] {
+    // Joined in the destructor: it captures `this`, so it must not outlive us.
+    resend_ = std::thread([this, ag] {
       for (int i = 0; i < 50; ++i) {
         goal_pub_.publish(ag);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::lock_guard<std::mutex> lk(mu_);
         if (done_ || state_ != GoalStatusVals::PENDING) return;
       }
-    }).detach();
+    });
   }
 
   void cancelGoal() {
@@ -141,6 +151,7 @@ class SimpleActionClient {
   uint8_t state_ = GoalStatusVals::PENDING;
   bool done_ = false;
   std::atomic<bool> seen_status_{false};
+  std::thread resend_;
 };
 
 // --- SimpleActionServer<Act> ----------------------------------------------

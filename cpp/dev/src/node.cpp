@@ -129,6 +129,11 @@ class Publication {
       : topic_(std::move(topic)), type_(std::move(type)), md5_(std::move(md5)),
         def_(std::move(def)), latch_(latch), host_(std::move(host)) {}
 
+  // stop() owns accept_thread_; without this, dropping the last shared_ptr to a
+  // Publication (i.e. letting a Publisher go out of scope) would destroy a
+  // joinable std::thread and abort the process. stop() is idempotent.
+  ~Publication() { stop(); }
+
   bool start() {
     listen_fd_ = tcp_listen("0.0.0.0", 0, &port_);
     if (listen_fd_ < 0) return false;
@@ -457,6 +462,10 @@ class ServiceServer {
       : name_(std::move(name)), type_(std::move(type)), md5_(std::move(md5)),
         req_type_(std::move(req_type)), resp_type_(std::move(resp_type)),
         handler_(std::move(handler)), node_name_(std::move(node_name)) {}
+
+  // Same as Publication: stop() owns accept_thread_, so it must run on destruction
+  // or letting a ServiceServer go out of scope aborts the process.
+  ~ServiceServer() { stop(); }
 
   bool start(const std::string& host) {
     listen_fd_ = tcp_listen("0.0.0.0", 0, &port_);

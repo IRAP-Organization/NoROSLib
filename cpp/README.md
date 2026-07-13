@@ -222,6 +222,59 @@ Not in the catalog? Write a small struct with the three static strings
 `irap_noroslib::Writer` / `irap_noroslib::Reader`. See `examples/custom_msg.cpp`, and
 `examples/sensor_reading.hpp` for one with a `std_msgs::Header`.
 
+### Loading a `.msg` / `.srv` / `.action` **file** at runtime
+
+Already have the file? Copy it off the robot and give irap_noroslib its **full
+path** — no catkin package, no ROS install, no struct to write, and no md5 to look
+up. It parses the file and derives the md5 exactly the way ROS does:
+
+```cpp
+using namespace irap_noroslib;
+
+MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
+
+DynamicPublisher pub("/data", CustomData);
+DynamicMessage m = CustomData.create();
+m.set("id", 7).set("label", "hi");
+m.set("header.frame_id", "base_link");        // nest with a dot
+m.set("where.x", 1.5);
+pub.publish(m);
+
+DynamicSubscriber sub("/data", CustomData, [](const DynamicMessage& m) {
+  loginfo(m.get<std::string>("label"));
+  double x = m.get<double>("where.x");
+  auto samples = m.get_array<double>("samples");     // arrays
+  auto blob    = m.bytes("blob");                    // uint8[]
+  auto unit    = m.get<std::string>("readings[1].unit");   // index into an array
+});
+```
+
+**One file, one call.** Several custom messages? Load each by its own path — order
+doesn't matter, and if you forget one the error names the file to load. The second
+argument is the ROS package the message came from (ROS names types `pkg/Type`); it
+is inferred only when the file still sits in a `<pkg>/msg/<Type>.msg` layout.
+
+| Function | Loads |
+|---|---|
+| `load_msg_file(path, pkg)` | one `.msg` → `MsgType` |
+| `load_msg_files({paths}, pkg)` | several `.msg` files at once |
+| `load_srv_file(path, pkg)` | one `.srv` (split on `---`) → `SrvType` |
+| `load_action_file(path, pkg)` | one `.action` → `ActionType` + all 7 action types |
+| `selftest_builtin_md5(&fails)` | recompute every built-in's md5 from its own text |
+
+Services and actions have runtime counterparts too — `DynamicServiceServer`,
+`DynamicServiceClient`, `DynamicActionClient`, `DynamicActionServer` — the usual
+classes with the compile-time type replaced by a loaded one.
+
+A runtime-loaded type and a hand-written struct produce **identical wire bytes and
+identical md5s**, so they interoperate freely: a `DynamicPublisher` feeds a
+`Subscriber<geometry_msgs::Twist>`, and both talk to real roscpp/rospy.
+
+`examples/custom_msg.cpp` shows both ways side by side. Verified against real ROS:
+every md5 derived from a bare file matches `rosmsg md5` / `rossrv md5`, and all 64
+built-ins pass `selftest_builtin_md5()` — their *computed* md5 equals the hardcoded
+one, with no ROS installed.
+
 ## Services
 
 A service is a struct with `TYPE` + `MD5` and nested `Request` / `Response`. See

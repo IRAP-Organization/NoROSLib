@@ -106,7 +106,7 @@ it from elsewhere.
 | **Actions** (actionlib) | 5 action topics | ✅ | ✅ |
 | **Parameters** | master XML-RPC | ✅ | ✅ |
 | **Messages** | std/geometry/sensor/nav/diagnostic/trajectory + custom | ✅ | ✅ |
-| **Load `.msg`/`.srv`/`.action` files** | point it at a file copied off a robot | ✅ | — |
+| **Load `.msg`/`.srv`/`.action` files** | point it at a file copied off a robot | ✅ | ✅ |
 | **md5** | auto-computed **and** auto-discovered from mismatch | ✅ | ✅ |
 | **Config** | master URI + hostname from code | ✅ | ✅ |
 | **Master (`nr_roscore`)** | *be* the roscore: Master + Param Server (dict trees) + `/rosout` | ✅ | ✅ |
@@ -361,10 +361,10 @@ message, make the first field a `Header` (Python: `std_msgs/Header header`; C++:
 compose `std_msgs::Header` in your codec) — see the `stamped_pub`/`stamped_sub`
 examples.
 
-### Already have the `.msg` file? Just load it *(Python)*
+### Already have the `.msg` file? Just load it
 
 Copy a `.msg` off the robot and hand irap_noroslib its **full path**. No catkin
-package, no ROS install — just the file:
+package, no ROS install — just the file. Works in **both languages**:
 
 ```python
 from irap_noroslib import load_msg_file, load_srv_file, load_action_file
@@ -377,6 +377,16 @@ pub = irap_noroslib.Publisher("/data", CustomData)
 pub.publish(CustomData(id=7, label="hi"))
 ```
 
+```cpp
+using namespace irap_noroslib;
+MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
+
+DynamicPublisher pub("/data", CustomData);
+DynamicMessage m = CustomData.create();
+m.set("id", 7).set("label", "hi");     // fields by name; nest with "header.frame_id"
+pub.publish(m);
+```
+
 The md5sum and the wire codec come straight from the file, so the type is exactly
 what real ROS computes and real ROS nodes accept it. **One file, one call** — if
 you have several custom messages, load each by its own path (order doesn't
@@ -385,14 +395,18 @@ matter). `load_action_file` registers all 7 ROS action types for you.
 The second argument is the ROS package the message came from — the `my_robot_msgs`
 in `my_robot_msgs/CustomData` — because ROS names types `pkg/Type`.
 
-Verified end-to-end: a custom package built on real ROS with `catkin_make`, then
-loaded from its bare files — all 11 md5s (3 messages, a service, 7 action types)
-match `rosmsg md5` / `rossrv md5`, and the types flow **both ways** against genuine
-rospy nodes over topics, a service and an action. Details in
-[`python/README.md`](python/README.md).
+C++ gets `DynamicPublisher` / `DynamicSubscriber` / `DynamicServiceServer` /
+`DynamicServiceClient` / `DynamicActionClient` / `DynamicActionServer`, which are the
+usual classes with the compile-time type replaced by a loaded one. A runtime-loaded
+type and a hand-written struct produce identical bytes and identical md5s, so they
+interoperate freely.
 
-> C++ still needs its message types written as structs (see below) — the runtime
-> file loader is Python-only for now.
+Verified end-to-end: a custom package built on real ROS with `catkin_make`, then
+loaded from its bare files — in **both** languages all 11 md5s (3 messages, a
+service, 7 action types) match `rosmsg md5` / `rossrv md5`, and the types flow
+**both ways** against genuine rospy nodes over topics, a service and an action.
+See [`python/README.md`](python/README.md) / [`cpp/README.md`](cpp/README.md), and
+the `custom_msg` example, which shows both ways of defining a type side by side.
 
 ## Examples
 

@@ -315,10 +315,12 @@ inline std::string fs_basename(const std::string& path) {
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -422,6 +424,440 @@ struct Reader {
     need(n); std::vector<uint8_t> v(p, p + n); p += n; return v;
   }
 };
+
+}  // namespace irap_noroslib
+
+// ===== irap_noroslib/md5calc.h =====
+// md5calc.h - MD5 (RFC 1321), used to derive ROS message md5sums from .msg text.
+//
+// ROS identifies a message type by the md5 of a canonical form of its .msg
+// definition. To load a .msg file at runtime we must compute that md5 ourselves,
+// so this is a self-contained MD5 -- no OpenSSL, no third-party library, in
+// keeping with the rest of irap_noroslib.
+//
+// Public-domain implementation (Colin Plumb's, as used by the RFC reference and
+// countless projects since). Everything is inline and namespaced, so amalgamating
+// irap_noroslib into a project that already has its own MD5 cannot collide.
+//
+//   irap_noroslib::md5_hex("abc") == "900150983cd24fb0d6963f7d28e17f72"
+
+namespace irap_noroslib {
+namespace md5 {
+
+struct Ctx {
+  uint32_t a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476;
+  uint64_t bits = 0;      // message length in bits
+  uint8_t  buf[64] = {0};
+  size_t   have = 0;      // bytes currently in buf
+};
+
+inline uint32_t rol(uint32_t x, int n) { return (x << n) | (x >> (32 - n)); }
+
+inline void transform(Ctx& s, const uint8_t* p) {
+  static const uint32_t K[64] = {
+      0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a,
+      0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
+      0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340,
+      0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+      0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8,
+      0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
+      0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70, 0x289b7ec6, 0xeaa127fa,
+      0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+      0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92,
+      0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
+      0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+  static const int R[64] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+                            5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20,
+                            4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                            6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
+  uint32_t m[16];
+  for (int i = 0; i < 16; ++i)      // little-endian, per the RFC
+    m[i] = static_cast<uint32_t>(p[i * 4]) | (static_cast<uint32_t>(p[i * 4 + 1]) << 8) |
+           (static_cast<uint32_t>(p[i * 4 + 2]) << 16) |
+           (static_cast<uint32_t>(p[i * 4 + 3]) << 24);
+
+  uint32_t a = s.a, b = s.b, c = s.c, d = s.d;
+  for (int i = 0; i < 64; ++i) {
+    uint32_t f;
+    int g;
+    if (i < 16)      { f = (b & c) | (~b & d);            g = i; }
+    else if (i < 32) { f = (d & b) | (~d & c);            g = (5 * i + 1) % 16; }
+    else if (i < 48) { f = b ^ c ^ d;                     g = (3 * i + 5) % 16; }
+    else             { f = c ^ (b | ~d);                  g = (7 * i) % 16; }
+    uint32_t tmp = d;
+    d = c;
+    c = b;
+    b = b + rol(a + f + K[i] + m[g], R[i]);
+    a = tmp;
+  }
+  s.a += a; s.b += b; s.c += c; s.d += d;
+}
+
+inline void update(Ctx& s, const uint8_t* data, size_t n) {
+  s.bits += static_cast<uint64_t>(n) * 8;
+  while (n > 0) {
+    size_t take = 64 - s.have;
+    if (take > n) take = n;
+    std::memcpy(s.buf + s.have, data, take);
+    s.have += take;
+    data += take;
+    n -= take;
+    if (s.have == 64) {
+      transform(s, s.buf);
+      s.have = 0;
+    }
+  }
+}
+
+inline void finish(Ctx& s, uint8_t out[16]) {
+  uint64_t bits = s.bits;
+  uint8_t pad = 0x80;
+  update(s, &pad, 1);
+  uint8_t zero = 0;
+  while (s.have != 56) update(s, &zero, 1);
+  uint8_t len[8];   // the ORIGINAL length, saved before the padding bumped s.bits
+  for (int i = 0; i < 8; ++i) len[i] = static_cast<uint8_t>(bits >> (8 * i));
+  update(s, len, 8);
+
+  const uint32_t words[4] = {s.a, s.b, s.c, s.d};
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 4; ++j) out[i * 4 + j] = static_cast<uint8_t>(words[i] >> (8 * j));
+}
+
+}  // namespace md5
+
+/// Hex md5 digest of `data` (lowercase, 32 chars).
+inline std::string md5_hex(const std::string& data) {
+  md5::Ctx s;
+  md5::update(s, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+  uint8_t out[16];
+  md5::finish(s, out);
+  static const char* H = "0123456789abcdef";
+  std::string hex(32, '0');
+  for (int i = 0; i < 16; ++i) {
+    hex[i * 2]     = H[out[i] >> 4];
+    hex[i * 2 + 1] = H[out[i] & 0x0f];
+  }
+  return hex;
+}
+
+}  // namespace irap_noroslib
+
+// ===== irap_noroslib/dynmsg.hpp =====
+// dynmsg.hpp -- runtime message types, parsed from ROS `.msg` text.
+//
+// The structs in std_msgs.hpp & friends need their md5 typed in by hand. These
+// don't: give irap_noroslib the `.msg` text and it derives the md5sum (the exact
+// ROS "gentools" algorithm) and the wire codec for you. That is what makes
+// load_msg_file() possible -- see msgfile.hpp.
+//
+//   MsgType T = load_msg_file("/home/me/msgs/Pose2D.msg", "my_pkg");
+//   DynamicMessage m = T.create();
+//   m.set("x", 1.0);
+//   double x = m.get<double>("x");
+//
+// Fields are addressed by name; nest with a dot, index with brackets:
+//   m.set("header.frame_id", "odom");
+//   m.get<double>("poses[2].position.x");
+
+
+
+namespace irap_noroslib {
+
+class Registry;
+class DynamicMessage;
+class MsgSpec;
+
+/// One line of a `.msg`: a field, or a constant.
+struct Field {
+  std::string base_type;    // "float64", "Header", "geometry_msgs/Point"
+  std::string name;
+  bool is_array = false;
+  int array_len = -1;       // >=0 for a fixed [N]; -1 for a variable []
+  bool is_constant = false;
+  std::string const_value;  // raw text, exactly as written -- it feeds the md5
+};
+
+/// A builtin scalar (bool/intN/floatN/string/time/duration). NOT "Header".
+bool is_primitive(const std::string& t);
+
+/// "Header" -> "std_msgs/Header"; a bare "Point" in package P -> "P/Point";
+/// an already-qualified "pkg/Type" or a primitive comes back unchanged.
+std::string resolve_type(const std::string& base_type, const std::string& pkg);
+
+/// Parse `.msg` text into fields + constants, in declaration order.
+std::vector<Field> parse_msg_text(const std::string& text);
+
+/// A field value. The exact ROS type lives in the Field, so the codec is
+/// spec-driven and this only has to hold and coerce -- which collapses the 11
+/// numeric ROS types down to three kinds.
+class Value {
+ public:
+  enum Kind { NONE, BOOL, INT, UINT, REAL, STRING, TIME, DURATION, MSG, ARRAY, BYTES };
+
+  Value() = default;
+  Value(bool v) : k_(BOOL), i_(v ? 1 : 0) {}
+  Value(int8_t v) : k_(INT), i_(v) {}
+  Value(int16_t v) : k_(INT), i_(v) {}
+  Value(int32_t v) : k_(INT), i_(v) {}
+  Value(long v) : k_(INT), i_(v) {}
+  Value(long long v) : k_(INT), i_(v) {}
+  Value(uint8_t v) : k_(UINT), u_(v) {}
+  Value(uint16_t v) : k_(UINT), u_(v) {}
+  Value(uint32_t v) : k_(UINT), u_(v) {}
+  Value(unsigned long v) : k_(UINT), u_(v) {}
+  Value(unsigned long long v) : k_(UINT), u_(v) {}
+  Value(float v) : k_(REAL), d_(v) {}
+  Value(double v) : k_(REAL), d_(v) {}
+  Value(const char* v) : k_(STRING), s_(v ? v : "") {}
+  Value(std::string v) : k_(STRING), s_(std::move(v)) {}
+  Value(Time v) : k_(TIME), t_(v) {}
+  Value(Duration v) : k_(DURATION), du_(v) {}
+  Value(const DynamicMessage& m);
+  Value(std::vector<Value> a);
+  Value(std::vector<uint8_t> b);
+
+  // Deep copy -- two DynamicMessages must never share a nested message.
+  Value(const Value& o);
+  Value& operator=(const Value& o);
+  Value(Value&& o) noexcept;
+  Value& operator=(Value&& o) noexcept;
+  ~Value();
+
+  Kind kind() const { return k_; }
+
+  /// Coerces across the numeric kinds; throws across categories.
+  template <typename T>
+  T as() const {
+    if constexpr (std::is_same_v<T, std::string>) return as_string();
+    else if constexpr (std::is_same_v<T, Time>) return as_time();
+    else if constexpr (std::is_same_v<T, Duration>) return as_duration();
+    else if constexpr (std::is_same_v<T, bool>) return as_i64() != 0;
+    else if constexpr (std::is_floating_point_v<T>) return static_cast<T>(as_f64());
+    else if constexpr (std::is_integral_v<T>) return static_cast<T>(as_i64());
+    else static_assert(sizeof(T) == 0, "irap_noroslib: unsupported field type");
+  }
+
+  std::vector<Value>& array();
+  const std::vector<Value>& array() const;
+  std::vector<uint8_t>& bytes();
+  const std::vector<uint8_t>& bytes() const;
+  DynamicMessage& msg();
+  const DynamicMessage& msg() const;
+
+  std::string str() const;   // debug repr
+
+ private:
+  int64_t as_i64() const;
+  double as_f64() const;
+  std::string as_string() const;
+  Time as_time() const;
+  Duration as_duration() const;
+
+  Kind k_ = NONE;
+  int64_t i_ = 0;
+  uint64_t u_ = 0;
+  double d_ = 0;
+  Time t_{};
+  Duration du_{};
+  std::string s_;
+  std::unique_ptr<DynamicMessage> m_;
+  std::unique_ptr<std::vector<Value>> a_;
+  std::unique_ptr<std::vector<uint8_t>> raw_;
+};
+
+/// A parsed message type: fields, md5, definition, and a codec driven by them.
+class MsgSpec {
+ public:
+  MsgSpec(std::string full_type, std::string text, Registry* reg);
+
+  const std::string& type() const { return type_; }
+  const std::string& pkg() const { return pkg_; }
+  const std::string& text() const { return text_; }
+  const std::vector<Field>& fields() const { return fields_; }
+
+  /// The pre-hash text: constants first, then fields, with nested types replaced
+  /// by their md5. Hashing it gives the message md5; a SERVICE md5 hashes the
+  /// request's md5_text() concatenated with the response's.
+  const std::string& md5_text() const { return md5_text_; }
+  const std::string& md5() const { return md5_; }
+  /// The connection-header "message_definition": this text, then every dependency
+  /// behind a `MSG:` separator.
+  const std::string& definition() const { return definition_; }
+
+  int slot_of(const std::string& name) const;         // -1 if absent or constant
+  const Field* field_of(const std::string& name) const;
+  const Field* constant(const std::string& name) const;
+
+  void write(const DynamicMessage& m, Writer& w) const;
+  DynamicMessage read(Reader& r) const;
+  DynamicMessage make_default() const;
+  /// A default element for an array field (used by DynamicMessage::append).
+  Value default_element(const Field& f) const { return default_scalar(f.base_type); }
+
+  /// Compute md5/definition. Called once every dependency is registered, so a
+  /// spec is immutable afterwards -- which is what lets callbacks on socket
+  /// threads hold a shared_ptr<const MsgSpec> without locking.
+  void finalize();
+
+ private:
+  void write_field(const Field& f, const Value& v, Writer& w) const;
+  Value read_field(const Field& f, Reader& r) const;
+  void write_scalar(const std::string& base, const Value& v, Writer& w) const;
+  Value read_scalar(const std::string& base, Reader& r) const;
+  Value default_of(const Field& f) const;
+  Value default_scalar(const std::string& base) const;
+
+  std::string type_, pkg_, text_;
+  Registry* reg_ = nullptr;
+  std::vector<Field> fields_;
+  std::map<std::string, int> slots_;   // field name -> slot in DynamicMessage
+  std::vector<int> field_slot_;        // fields_ index -> slot, -1 for constants
+  int nslots_ = 0;
+  std::string md5_text_, md5_, definition_;
+};
+
+/// An instance of a runtime-loaded message type.
+class DynamicMessage {
+ public:
+  DynamicMessage() = default;
+  explicit DynamicMessage(std::shared_ptr<const MsgSpec> spec);
+
+  bool valid() const { return spec_ != nullptr; }
+  const std::string& type() const;
+  const MsgSpec& spec() const;
+
+  /// Set a field. `path` may nest/index: "header.frame_id", "pts[1].x".
+  template <typename T>
+  DynamicMessage& set(const std::string& path, const T& v) {
+    at(path) = Value(v);
+    return *this;
+  }
+  DynamicMessage& set(const std::string& path, const char* v) {
+    at(path) = Value(std::string(v));
+    return *this;
+  }
+  DynamicMessage& set(const std::string& path, const DynamicMessage& v) {
+    at(path) = Value(v);
+    return *this;
+  }
+  /// Fill an array field from a typed vector.
+  template <typename T>
+  DynamicMessage& set_array(const std::string& path, const std::vector<T>& v) {
+    std::vector<Value> a;
+    a.reserve(v.size());
+    for (const T& e : v) a.emplace_back(e);
+    at(path) = Value(std::move(a));
+    return *this;
+  }
+  DynamicMessage& set_bytes(const std::string& path, std::vector<uint8_t> v) {
+    at(path) = Value(std::move(v));
+    return *this;
+  }
+
+  template <typename T>
+  T get(const std::string& path) const {
+    return at(path).template as<T>();
+  }
+  template <typename T>
+  std::vector<T> get_array(const std::string& path) const {
+    const Value& v = at(path);
+    std::vector<T> out;
+    if (v.kind() == Value::BYTES) {
+      for (uint8_t b : v.bytes()) out.push_back(static_cast<T>(b));
+      return out;
+    }
+    for (const Value& e : v.array()) out.push_back(e.template as<T>());
+    return out;
+  }
+
+  Value& at(const std::string& path);
+  const Value& at(const std::string& path) const;
+
+  DynamicMessage& msg(const std::string& path) { return at(path).msg(); }
+  const DynamicMessage& msg(const std::string& path) const { return at(path).msg(); }
+  std::vector<Value>& array(const std::string& path) { return at(path).array(); }
+  const std::vector<Value>& array(const std::string& path) const { return at(path).array(); }
+  std::vector<uint8_t>& bytes(const std::string& path) { return at(path).bytes(); }
+  const std::vector<uint8_t>& bytes(const std::string& path) const { return at(path).bytes(); }
+  size_t size(const std::string& path) const;
+
+  /// Append a default element to an array field and return it (for arrays of
+  /// messages, so you can fill the new element in place).
+  Value& append(const std::string& path);
+
+  std::vector<uint8_t> serialize() const;
+  std::string str() const;
+
+  std::vector<Value>& values() { return values_; }
+  const std::vector<Value>& values() const { return values_; }
+
+ private:
+  Value* resolve(const std::string& path, const MsgSpec** owner = nullptr,
+                 const Field** field = nullptr) const;
+
+  std::shared_ptr<const MsgSpec> spec_;
+  mutable std::vector<Value> values_;
+};
+
+/// A handle on a runtime-loaded message type. Cheap to copy, safe to share.
+class MsgType {
+ public:
+  MsgType() = default;
+  explicit MsgType(std::shared_ptr<const MsgSpec> s) : spec_(std::move(s)) {}
+
+  bool valid() const { return spec_ != nullptr; }
+  const std::string& type() const { return get()->type(); }
+  const std::string& md5() const { return get()->md5(); }
+  const std::string& text() const { return get()->text(); }
+  const std::string& definition() const { return get()->definition(); }
+  const std::string& md5_text() const { return get()->md5_text(); }
+
+  DynamicMessage create() const { return get()->make_default(); }
+  DynamicMessage decode(const std::vector<uint8_t>& body) const {
+    Reader r(body);
+    return get()->read(r);
+  }
+  std::shared_ptr<const MsgSpec> shared() const { return spec_; }
+
+ private:
+  const MsgSpec* get() const {
+    if (!spec_) throw std::runtime_error("irap_noroslib: empty MsgType");
+    return spec_.get();
+  }
+  std::shared_ptr<const MsgSpec> spec_;
+};
+
+/// Every registered runtime type, by "pkg/Type". Process-global.
+class Registry {
+ public:
+  static Registry& global();
+
+  /// Register from `.msg` text. Identical text re-registers to the same type;
+  /// conflicting text for a name already in use is refused (live publishers hold
+  /// the old spec, and dependents have cached its md5).
+  MsgType register_msg(const std::string& full_type, const std::string& text);
+
+  /// Look up, or throw naming the file the caller still has to load.
+  MsgType get(const std::string& full_type);
+  bool has(const std::string& full_type);
+
+  std::shared_ptr<const MsgSpec> spec(const std::string& full_type);  // used by MsgSpec
+
+ private:
+  Registry() = default;
+  MsgType register_locked(const std::string& full_type, const std::string& text);
+  void ensure_builtins();
+
+  std::recursive_mutex mu_;
+  std::map<std::string, std::shared_ptr<MsgSpec>> specs_;
+  bool seeding_ = false;
+  bool seeded_ = false;
+};
+
+/// Seed the registry with the 64 built-in types. Defined in msgfile.cpp (which is
+/// where the *_msgs.hpp headers live); declared here so Registry can call it.
+void seed_builtin_types(Registry& r);
 
 }  // namespace irap_noroslib
 
@@ -1586,6 +2022,110 @@ struct SetBool {
 
 }  // namespace std_srvs
 
+// ===== irap_noroslib/msgfile.hpp =====
+// msgfile.hpp -- load ROS `.msg` / `.srv` / `.action` FILES at runtime.
+//
+// Copy a definition off a real ROS robot and hand irap_noroslib its full path --
+// no catkin package, no ROS install, just the file:
+//
+//   MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
+//
+//   DynamicPublisher pub("/data", CustomData);
+//   DynamicMessage m = CustomData.create();
+//   m.set("id", 7).set("label", "hi");
+//   pub.publish(m);
+//
+// The md5sum and the wire codec come from the file, so the type is exactly what
+// real ROS computes (`rosmsg md5`) and real ROS nodes accept it.
+//
+// ONE FILE, ONE CALL. Several custom messages means several calls, each with its
+// own path. Order doesn't matter -- a nested type is resolved when it is first
+// used, and if you forgot its file the error names the one to load.
+//
+// The package name is the "my_robot_msgs" in "my_robot_msgs/CustomData"; ROS
+// identifies types by that full name, so pass the package the message came from.
+// It is inferred only when the file still sits in a <pkg>/msg/<Type>.msg layout.
+
+
+
+namespace irap_noroslib {
+
+/// A runtime-loaded service type.
+class SrvType {
+ public:
+  SrvType() = default;
+  SrvType(std::string type, std::string md5, MsgType req, MsgType resp)
+      : type_(std::move(type)), md5_(std::move(md5)),
+        req_(std::move(req)), resp_(std::move(resp)) {}
+
+  bool valid() const { return req_.valid(); }
+  const std::string& type() const { return type_; }
+  const std::string& md5() const { return md5_; }        // md5(req.md5_text + resp.md5_text)
+  const MsgType& request() const { return req_; }
+  const MsgType& response() const { return resp_; }
+
+ private:
+  std::string type_, md5_;
+  MsgType req_, resp_;
+};
+
+/// A runtime-loaded action type: the 7 message types ROS generates from a .action.
+class ActionType {
+ public:
+  ActionType() = default;
+  ActionType(std::string type, MsgType goal, MsgType result, MsgType feedback,
+             MsgType ag, MsgType ar, MsgType af, MsgType action)
+      : type_(std::move(type)), goal_(std::move(goal)), result_(std::move(result)),
+        feedback_(std::move(feedback)), action_goal_(std::move(ag)),
+        action_result_(std::move(ar)), action_feedback_(std::move(af)),
+        action_(std::move(action)) {}
+
+  bool valid() const { return goal_.valid(); }
+  const std::string& type() const { return type_; }
+  const MsgType& goal() const { return goal_; }
+  const MsgType& result() const { return result_; }
+  const MsgType& feedback() const { return feedback_; }
+  const MsgType& action_goal() const { return action_goal_; }
+  const MsgType& action_result() const { return action_result_; }
+  const MsgType& action_feedback() const { return action_feedback_; }
+  const MsgType& action() const { return action_; }
+
+ private:
+  std::string type_;
+  MsgType goal_, result_, feedback_, action_goal_, action_result_, action_feedback_, action_;
+};
+
+// -- register from text (no file involved) -----------------------------------
+MsgType register_msg(const std::string& full_type, const std::string& text);
+SrvType register_srv(const std::string& full_type, const std::string& request_text,
+                     const std::string& response_text);
+ActionType register_action(const std::string& full_type, const std::string& goal_text,
+                           const std::string& result_text,
+                           const std::string& feedback_text);
+
+// -- load from a file, by full path ------------------------------------------
+/// `pkg` is the ROS package the message came from. It may be omitted only if the
+/// file still sits in a <pkg>/msg/<Type>.msg (or srv/, action/) layout.
+MsgType load_msg_file(const std::string& path, const std::string& pkg = "");
+SrvType load_srv_file(const std::string& path, const std::string& pkg = "");
+ActionType load_action_file(const std::string& path, const std::string& pkg = "");
+
+/// Several .msg files from one package, in one call.
+std::vector<MsgType> load_msg_files(const std::vector<std::string>& paths,
+                                    const std::string& pkg = "");
+
+// -- lookup ------------------------------------------------------------------
+MsgType get_msg_type(const std::string& full_type);      // throws if not registered
+bool has_msg_type(const std::string& full_type);
+
+/// Self-check with no ROS anywhere: recompute every built-in type's md5 from its
+/// own DEFINITION text and compare it with the hardcoded MD5 constant. Exercises
+/// the MD5 code, the .msg parser and the gentools md5 rules in one shot.
+/// Returns the number of types checked; *failures* lists any that disagree.
+int selftest_builtin_md5(std::vector<std::string>* failures);
+
+}  // namespace irap_noroslib
+
 // ===== irap_noroslib/net_util.hpp =====
 // Small socket helpers shared across the bridge. Header-only, no ROS deps.
 
@@ -2148,6 +2688,138 @@ class ServiceClient {
 
 }  // namespace irap_noroslib
 
+// ===== irap_noroslib/dynamic_node.hpp =====
+// dynamic_node.hpp -- publish/subscribe/serve with types loaded at RUNTIME.
+//
+// Publisher<T>/Subscriber<T> read T::TYPE, T::MD5 and T::DEFINITION *statically*,
+// so a type that only exists at runtime cannot use them. These are the same
+// classes with those three constants replaced by a MsgType. They sit straight on
+// top of the already type-erased detail:: layer -- the transport itself does not
+// know or care which kind of message it is carrying, so nothing below changes.
+//
+//   MsgType T = load_msg_file("/home/me/msgs/Pose2D.msg", "my_pkg");
+//   DynamicPublisher pub("/pose", T);
+//   DynamicMessage m = T.create();
+//   m.set("x", 1.0);
+//   pub.publish(m);
+//
+//   DynamicSubscriber sub("/pose", T, [](const DynamicMessage& m) {
+//     loginfo("x = " + std::to_string(m.get<double>("x")));
+//   });
+
+
+
+namespace irap_noroslib {
+
+class DynamicPublisher {
+ public:
+  DynamicPublisher(const std::string& topic, const MsgType& type, bool latch = false)
+      : type_(type),
+        pub_(detail::advertise(topic, type.type(), type.md5(), type.definition(), latch)),
+        topic_(topic) {}
+
+  void publish(const DynamicMessage& m) {
+    if (m.type() != type_.type())
+      throw std::runtime_error("irap_noroslib: cannot publish a " + m.type() +
+                               " on " + topic_ + " (a " + type_.type() + " topic)");
+    detail::publish_raw(*pub_, m.serialize());
+  }
+
+  /// A blank message of this topic's type, ready to fill in.
+  DynamicMessage create() const { return type_.create(); }
+  const MsgType& type() const { return type_; }
+  int get_num_connections() const { return detail::num_connections(*pub_); }
+  void shutdown() { detail::unadvertise(pub_); }
+
+ private:
+  MsgType type_;
+  std::shared_ptr<detail::Publication> pub_;
+  std::string topic_;
+};
+
+class DynamicSubscriber {
+ public:
+  using Callback = std::function<void(const DynamicMessage&)>;
+
+  DynamicSubscriber(const std::string& topic, const MsgType& type, Callback cb,
+                    const std::string& transport = "tcpros") {
+    MsgType t = type;      // keeps the spec alive for the connection's lifetime
+    sub_ = detail::subscribe(
+        topic, type.type(), type.md5(),
+        [t, cb](const std::vector<uint8_t>& body) {
+          try {
+            cb(t.decode(body));
+          } catch (const std::exception& e) {
+            logwarn(std::string("deserialize failed: ") + e.what());
+          }
+        },
+        transport);
+  }
+
+  void shutdown() { detail::unsubscribe(sub_); }
+
+ private:
+  std::shared_ptr<detail::Subscription> sub_;
+};
+
+class DynamicServiceServer {
+ public:
+  /// Return false from the handler to signal failure to the caller.
+  using Handler = std::function<bool(const DynamicMessage& req, DynamicMessage& resp)>;
+
+  DynamicServiceServer(const std::string& name, const SrvType& srv, Handler h) {
+    SrvType s = srv;
+    srv_ = detail::advertise_service(
+        name, srv.type(), srv.md5(), srv.request().type(), srv.response().type(),
+        [s, h](const std::vector<uint8_t>& req_bytes, std::vector<uint8_t>& resp_bytes) {
+          try {
+            DynamicMessage resp = s.response().create();
+            if (!h(s.request().decode(req_bytes), resp)) return false;
+            resp_bytes = resp.serialize();
+            return true;
+          } catch (const std::exception& e) {
+            logwarn(std::string("service handler failed: ") + e.what());
+            return false;
+          }
+        });
+  }
+
+  void shutdown() { detail::unadvertise_service(srv_); }
+
+ private:
+  std::shared_ptr<detail::ServiceServer> srv_;
+};
+
+class DynamicServiceClient {
+ public:
+  DynamicServiceClient(const std::string& name, const SrvType& srv)
+      : name_(name), srv_(srv) {}
+
+  /// A blank request, ready to fill in.
+  DynamicMessage request() const { return srv_.request().create(); }
+
+  bool call(const DynamicMessage& req, DynamicMessage& resp) {
+    std::vector<uint8_t> out;
+    std::string err;
+    if (!detail::call_service(name_, srv_.md5(), req.serialize(), &out, &err)) {
+      logwarn("service call " + name_ + " failed: " + err);
+      return false;
+    }
+    resp = srv_.response().decode(out);
+    return true;
+  }
+
+  bool waitForExistence(double timeout_s = -1) {
+    return detail::wait_for_service(name_, timeout_s);
+  }
+
+ private:
+  std::string name_;
+  SrvType srv_;
+};
+
+}  // namespace irap_noroslib
+
 // ===== irap_noroslib/actionlib.hpp =====
 // actionlib.hpp — SimpleActionClient<Act> / SimpleActionServer<Act> over the
 // five standard action topics (goal/cancel/status/feedback/result).
@@ -2193,6 +2865,14 @@ class SimpleActionClient {
         fb_sub_(ns_ + "/feedback", [this](const typename Act::ActionFeedback& m) { on_feedback(m); }),
         res_sub_(ns_ + "/result", [this](const typename Act::ActionResult& m) { on_result(m); }) {}
 
+  // The goal-resend thread captures `this`, so it must not outlive us.
+  ~SimpleActionClient() {
+    { std::lock_guard<std::mutex> lk(mu_); done_ = true; }   // stop the resend loop
+    if (resend_.joinable()) resend_.join();
+  }
+  SimpleActionClient(const SimpleActionClient&) = delete;
+  SimpleActionClient& operator=(const SimpleActionClient&) = delete;
+
   bool waitForServer(double timeout_s = -1) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -2211,6 +2891,7 @@ class SimpleActionClient {
     ag.goal_id.id = detail::new_goal_id();
     detail::stamp_now(&ag.goal_id.stamp_sec, &ag.goal_id.stamp_nsec);
     ag.goal = goal;
+    if (resend_.joinable()) resend_.join();      // a previous goal's resender
     {
       std::lock_guard<std::mutex> lk(mu_);
       goal_id_ = ag.goal_id.id;
@@ -2220,14 +2901,15 @@ class SimpleActionClient {
     }
     // Resend until the server acks (status shows our id) or a result arrives,
     // covering the pub/sub connection race that would otherwise drop the goal.
-    std::thread([this, ag] {
+    // Joined in the destructor: it captures `this`, so it must not outlive us.
+    resend_ = std::thread([this, ag] {
       for (int i = 0; i < 50; ++i) {
         goal_pub_.publish(ag);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::lock_guard<std::mutex> lk(mu_);
         if (done_ || state_ != GoalStatusVals::PENDING) return;
       }
-    }).detach();
+    });
   }
 
   void cancelGoal() {
@@ -2281,6 +2963,7 @@ class SimpleActionClient {
   uint8_t state_ = GoalStatusVals::PENDING;
   bool done_ = false;
   std::atomic<bool> seen_status_{false};
+  std::thread resend_;
 };
 
 // --- SimpleActionServer<Act> ----------------------------------------------
@@ -2370,6 +3053,286 @@ class SimpleActionServer {
   Publisher<typename Act::ActionResult> result_pub_;
   Publisher<typename Act::ActionFeedback> feedback_pub_;
   Subscriber<typename Act::ActionGoal> goal_sub_;
+  Subscriber<actionlib_msgs::GoalID> cancel_sub_;
+  std::mutex mu_;
+  std::string cur_id_;
+  uint8_t cur_status_ = GoalStatusVals::PENDING;
+  bool preempt_ = false;
+  std::atomic<bool> running_{false};
+  std::thread status_thread_;
+};
+
+}  // namespace irap_noroslib
+
+// ===== irap_noroslib/dynamic_actionlib.hpp =====
+// dynamic_actionlib.hpp -- actionlib with a type loaded from a `.action` FILE.
+//
+// Same five topics and same semantics as SimpleActionClient/Server, but the goal,
+// feedback and result types come from ActionType instead of a traits struct. Only
+// three of the five topics are actually type-dependent: /cancel is always an
+// actionlib_msgs/GoalID and /status always an actionlib_msgs/GoalStatusArray, so
+// those keep the compile-time Publisher/Subscriber.
+//
+//   ActionType A = load_action_file("/home/me/msgs/Fibonacci.action", "my_pkg");
+//   DynamicActionClient c("/fibonacci", A);
+//   c.waitForServer();
+//   DynamicMessage goal = c.createGoal();
+//   goal.set("order", 10);
+//   c.sendGoal(goal, [](const DynamicMessage& fb) { ... });
+//   c.waitForResult();
+//   auto seq = c.getResult().get_array<int32_t>("sequence");
+
+
+
+namespace irap_noroslib {
+
+class DynamicActionClient {
+ public:
+  using FeedbackCb = std::function<void(const DynamicMessage&)>;   // <T>Feedback
+
+  DynamicActionClient(const std::string& ns, const ActionType& act)
+      : ns_(ns[0] == '/' ? ns : "/" + ns),
+        act_(act),
+        goal_pub_(ns_ + "/goal", act.action_goal()),
+        cancel_pub_(ns_ + "/cancel"),
+        status_sub_(ns_ + "/status",
+                    [this](const actionlib_msgs::GoalStatusArray& m) { on_status(m); }),
+        fb_sub_(ns_ + "/feedback", act.action_feedback(),
+                [this](const DynamicMessage& m) { on_feedback(m); }),
+        res_sub_(ns_ + "/result", act.action_result(),
+                 [this](const DynamicMessage& m) { on_result(m); }),
+        result_(act.result().create()) {}
+
+  // The goal-resend thread captures `this`, so it must not outlive us.
+  ~DynamicActionClient() {
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      done_ = true;                 // tells the resend loop to stop
+    }
+    if (resend_.joinable()) resend_.join();
+  }
+
+  DynamicActionClient(const DynamicActionClient&) = delete;
+  DynamicActionClient& operator=(const DynamicActionClient&) = delete;
+
+  bool waitForServer(double timeout_s = -1) {
+    auto deadline = std::chrono::steady_clock::now() +
+                    std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                        std::chrono::duration<double>(timeout_s < 0 ? 0 : timeout_s));
+    while (ok()) {
+      if (goal_pub_.get_num_connections() > 0 && seen_status_.load()) return true;
+      if (timeout_s >= 0 && std::chrono::steady_clock::now() >= deadline) return false;
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    return false;
+  }
+
+  /// A blank goal of this action's type, ready to fill in.
+  DynamicMessage createGoal() const { return act_.goal().create(); }
+
+  void sendGoal(const DynamicMessage& goal, FeedbackCb feedback_cb = nullptr) {
+    DynamicMessage ag = act_.action_goal().create();
+    uint32_t s, n;
+    detail::stamp_now(&s, &n);
+    ag.set("header.stamp", Time{s, n});
+    std::string id = detail::new_goal_id();
+    ag.set("goal_id.id", id);
+    ag.set("goal_id.stamp", Time{s, n});
+    ag.set("goal", goal);
+    if (resend_.joinable()) resend_.join();      // a previous goal's resender
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      goal_id_ = id;
+      feedback_cb_ = std::move(feedback_cb);
+      state_ = GoalStatusVals::PENDING;
+      done_ = false;
+    }
+    // Resend until the server acks (status carries our id) or a result lands --
+    // covers the pub/sub connection race that would otherwise drop the goal.
+    // Joined in the destructor: it captures `this`, so it must not outlive us.
+    resend_ = std::thread([this, ag] {
+      for (int i = 0; i < 50; ++i) {
+        goal_pub_.publish(ag);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::lock_guard<std::mutex> lk(mu_);
+        if (done_ || state_ != GoalStatusVals::PENDING) return;
+      }
+    });
+  }
+
+  void cancelGoal() {
+    actionlib_msgs::GoalID g;
+    { std::lock_guard<std::mutex> lk(mu_); g.id = goal_id_; }
+    detail::stamp_now(&g.stamp_sec, &g.stamp_nsec);
+    cancel_pub_.publish(g);
+  }
+
+  bool waitForResult(double timeout_s = -1) {
+    std::unique_lock<std::mutex> lk(mu_);
+    if (timeout_s < 0) { cv_.wait(lk, [this] { return done_; }); return true; }
+    return cv_.wait_for(lk, std::chrono::duration<double>(timeout_s),
+                        [this] { return done_; });
+  }
+
+  DynamicMessage getResult() { std::lock_guard<std::mutex> lk(mu_); return result_; }
+  uint8_t getState() { std::lock_guard<std::mutex> lk(mu_); return state_; }
+
+ private:
+  void on_status(const actionlib_msgs::GoalStatusArray& m) {
+    seen_status_.store(true);
+    std::lock_guard<std::mutex> lk(mu_);
+    for (const auto& st : m.status_list)
+      if (st.goal_id.id == goal_id_) state_ = st.status;
+  }
+  void on_feedback(const DynamicMessage& m) {
+    FeedbackCb cb;
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      if (m.get<std::string>("status.goal_id.id") != goal_id_) return;
+      cb = feedback_cb_;
+    }
+    if (cb) cb(m.msg("feedback"));
+  }
+  void on_result(const DynamicMessage& m) {
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      if (m.get<std::string>("status.goal_id.id") != goal_id_) return;
+      result_ = m.msg("result");
+      state_ = m.get<uint8_t>("status.status");
+      done_ = true;
+    }
+    cv_.notify_all();
+  }
+
+  std::string ns_;
+  ActionType act_;
+  DynamicPublisher goal_pub_;
+  Publisher<actionlib_msgs::GoalID> cancel_pub_;
+  Subscriber<actionlib_msgs::GoalStatusArray> status_sub_;
+  DynamicSubscriber fb_sub_, res_sub_;
+  std::mutex mu_;
+  std::condition_variable cv_;
+  std::string goal_id_;
+  FeedbackCb feedback_cb_;
+  DynamicMessage result_;
+  uint8_t state_ = GoalStatusVals::PENDING;
+  bool done_ = false;
+  std::atomic<bool> seen_status_{false};
+  std::thread resend_;
+};
+
+class DynamicActionServer {
+ public:
+  // execute_cb(goal, server&): call publishFeedback / setSucceeded / setAborted.
+  using ExecuteCb = std::function<void(const DynamicMessage&, DynamicActionServer&)>;
+
+  DynamicActionServer(const std::string& ns, const ActionType& act, ExecuteCb cb)
+      : ns_(ns[0] == '/' ? ns : "/" + ns),
+        act_(act),
+        execute_(std::move(cb)),
+        status_pub_(ns_ + "/status"),
+        result_pub_(ns_ + "/result", act.action_result()),
+        feedback_pub_(ns_ + "/feedback", act.action_feedback()),
+        goal_sub_(ns_ + "/goal", act.action_goal(),
+                  [this](const DynamicMessage& m) { on_goal(m); }),
+        cancel_sub_(ns_ + "/cancel",
+                    [this](const actionlib_msgs::GoalID& m) { on_cancel(m); }) {
+    running_.store(true);
+    status_thread_ = std::thread([this] { status_loop(); });
+  }
+  ~DynamicActionServer() {
+    running_.store(false);
+    if (status_thread_.joinable()) status_thread_.join();
+  }
+
+  /// Blank goal-shaped messages for the handler to fill in.
+  DynamicMessage createFeedback() const { return act_.feedback().create(); }
+  DynamicMessage createResult() const { return act_.result().create(); }
+
+  bool isPreemptRequested() { std::lock_guard<std::mutex> lk(mu_); return preempt_; }
+
+  void publishFeedback(const DynamicMessage& fb) {
+    DynamicMessage m = act_.action_feedback().create();
+    uint32_t s, n;
+    detail::stamp_now(&s, &n);
+    m.set("header.stamp", Time{s, n});
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      m.set("status.goal_id.id", cur_id_);
+      m.set("status.status", static_cast<uint8_t>(GoalStatusVals::ACTIVE));
+    }
+    m.set("feedback", fb);
+    feedback_pub_.publish(m);
+  }
+
+  void setSucceeded() { finish(GoalStatusVals::SUCCEEDED, act_.result().create()); }
+  void setSucceeded(const DynamicMessage& r) { finish(GoalStatusVals::SUCCEEDED, r); }
+  void setAborted() { finish(GoalStatusVals::ABORTED, act_.result().create()); }
+  void setAborted(const DynamicMessage& r) { finish(GoalStatusVals::ABORTED, r); }
+  void setPreempted() { finish(GoalStatusVals::PREEMPTED, act_.result().create()); }
+  void setPreempted(const DynamicMessage& r) { finish(GoalStatusVals::PREEMPTED, r); }
+
+ private:
+  void status_loop() {
+    Rate rate(10);
+    while (running_.load() && ok()) { publish_status(); rate.sleep(); }
+  }
+  void publish_status() {
+    actionlib_msgs::GoalStatusArray arr;
+    detail::stamp_now(&arr.header.stamp_sec, &arr.header.stamp_nsec);
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      if (!cur_id_.empty()) {
+        actionlib_msgs::GoalStatus st;
+        st.goal_id.id = cur_id_;
+        st.status = cur_status_;
+        arr.status_list.push_back(st);
+      }
+    }
+    status_pub_.publish(arr);
+  }
+  void on_goal(const DynamicMessage& ag) {
+    std::string id = ag.get<std::string>("goal_id.id");
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      if (id == cur_id_) return;      // duplicate resend
+      cur_id_ = id;
+      cur_status_ = GoalStatusVals::ACTIVE;
+      preempt_ = false;
+    }
+    DynamicMessage goal = ag.msg("goal");
+    std::thread([this, goal] {
+      execute_(goal, *this);
+      std::lock_guard<std::mutex> lk(mu_);
+      if (cur_status_ == GoalStatusVals::ACTIVE) cur_status_ = GoalStatusVals::ABORTED;
+    }).detach();
+  }
+  void on_cancel(const actionlib_msgs::GoalID& g) {
+    std::lock_guard<std::mutex> lk(mu_);
+    if (g.id == cur_id_ || g.id.empty()) preempt_ = true;
+  }
+  void finish(uint8_t status, const DynamicMessage& r) {
+    DynamicMessage m = act_.action_result().create();
+    uint32_t s, n;
+    detail::stamp_now(&s, &n);
+    m.set("header.stamp", Time{s, n});
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      m.set("status.goal_id.id", cur_id_);
+      m.set("status.status", status);
+      cur_status_ = status;
+    }
+    m.set("result", r);
+    result_pub_.publish(m);
+    publish_status();
+  }
+
+  std::string ns_;
+  ActionType act_;
+  ExecuteCb execute_;
+  Publisher<actionlib_msgs::GoalStatusArray> status_pub_;
+  DynamicPublisher result_pub_, feedback_pub_;
+  DynamicSubscriber goal_sub_;
   Subscriber<actionlib_msgs::GoalID> cancel_sub_;
   std::mutex mu_;
   std::string cur_id_;
@@ -3728,6 +4691,11 @@ class Publication {
       : topic_(std::move(topic)), type_(std::move(type)), md5_(std::move(md5)),
         def_(std::move(def)), latch_(latch), host_(std::move(host)) {}
 
+  // stop() owns accept_thread_; without this, dropping the last shared_ptr to a
+  // Publication (i.e. letting a Publisher go out of scope) would destroy a
+  // joinable std::thread and abort the process. stop() is idempotent.
+  ~Publication() { stop(); }
+
   bool start() {
     listen_fd_ = tcp_listen("0.0.0.0", 0, &port_);
     if (listen_fd_ < 0) return false;
@@ -4056,6 +5024,10 @@ class ServiceServer {
       : name_(std::move(name)), type_(std::move(type)), md5_(std::move(md5)),
         req_type_(std::move(req_type)), resp_type_(std::move(resp_type)),
         handler_(std::move(handler)), node_name_(std::move(node_name)) {}
+
+  // Same as Publication: stop() owns accept_thread_, so it must run on destruction
+  // or letting a ServiceServer go out of scope aborts the process.
+  ~ServiceServer() { stop(); }
 
   bool start(const std::string& host) {
     listen_fd_ = tcp_listen("0.0.0.0", 0, &port_);
@@ -4492,6 +5464,896 @@ bool has_param(const std::string& key) {
 bool delete_param(const std::string& key) {
   std::string err;
   return g_node && irap_noroslib::delete_param(g_node->master_uri(), g_node->name(), key, &err);
+}
+
+}  // namespace irap_noroslib
+
+// ===== src/dynmsg.cpp =====
+// dynmsg.cpp -- the `.msg` parser, the ROS md5 algorithm, and the generic codec.
+
+
+namespace irap_noroslib {
+namespace {
+
+const char* kPrimitives[] = {"bool", "int8", "byte", "uint8", "char", "int16",
+                             "uint16", "int32", "uint32", "int64", "uint64",
+                             "float32", "float64", "string", "time", "duration"};
+
+std::string trim(const std::string& s) {
+  size_t a = s.find_first_not_of(" \t\r\n");
+  if (a == std::string::npos) return "";
+  size_t b = s.find_last_not_of(" \t\r\n");
+  return s.substr(a, b - a + 1);
+}
+
+std::vector<std::string> split_lines(const std::string& text) {
+  std::vector<std::string> out;
+  std::string cur;
+  for (char c : text) {
+    if (c == '\n') { out.push_back(cur); cur.clear(); }
+    else if (c != '\r') { cur += c; }
+  }
+  if (!cur.empty()) out.push_back(cur);
+  return out;
+}
+
+// "float64[9]" -> ("float64", true, 9);  "Point[]" -> ("Point", true, -1)
+void split_array(const std::string& tok, std::string* base, bool* is_array, int* len) {
+  *base = tok;
+  *is_array = false;
+  *len = -1;
+  size_t open = tok.find('[');
+  if (open == std::string::npos || tok.back() != ']') return;
+  *base = tok.substr(0, open);
+  *is_array = true;
+  std::string inner = tok.substr(open + 1, tok.size() - open - 2);
+  if (!inner.empty()) *len = std::atoi(inner.c_str());
+}
+
+// A `string NAME=...` line. ROS lets a string constant's value run to the end of
+// the line -- a '#' in it is NOT a comment -- so this must be matched BEFORE
+// comments are stripped.
+bool string_constant(const std::string& raw, Field* out) {
+  std::string s = trim(raw);
+  if (s.rfind("string ", 0) != 0) return false;
+  size_t eq = s.find('=');
+  if (eq == std::string::npos) return false;
+  std::string decl = trim(s.substr(0, eq));
+  // decl must be exactly "string NAME"
+  size_t sp = decl.find_first_of(" \t");
+  if (sp == std::string::npos) return false;
+  std::string name = trim(decl.substr(sp));
+  if (name.empty() || name.find_first_of(" \t") != std::string::npos) return false;
+  out->base_type = "string";
+  out->name = name;
+  out->is_constant = true;
+  out->const_value = trim(s.substr(eq + 1));   // genmsg strips string constants
+  return true;
+}
+
+const std::string kSep(80, '=');
+
+}  // namespace
+
+bool is_primitive(const std::string& t) {
+  for (const char* p : kPrimitives)
+    if (t == p) return true;
+  return false;
+}
+
+std::string resolve_type(const std::string& base_type, const std::string& pkg) {
+  if (base_type == "Header") return "std_msgs/Header";
+  if (is_primitive(base_type)) return base_type;
+  if (base_type.find('/') != std::string::npos) return base_type;
+  return pkg.empty() ? base_type : pkg + "/" + base_type;
+}
+
+std::vector<Field> parse_msg_text(const std::string& text) {
+  std::vector<Field> fields;
+  for (const std::string& raw : split_lines(text)) {
+    Field sc;
+    if (string_constant(raw, &sc)) { fields.push_back(sc); continue; }
+
+    std::string line = raw;
+    size_t hash = line.find('#');
+    if (hash != std::string::npos) line = line.substr(0, hash);
+    line = trim(line);
+    if (line.empty()) continue;
+
+    size_t sp = line.find_first_of(" \t");
+    if (sp == std::string::npos) continue;          // a lone token: not a field
+    std::string type_tok = line.substr(0, sp);
+    std::string rest = trim(line.substr(sp));
+    if (rest.empty()) continue;
+
+    size_t eq = rest.find('=');
+    if (eq != std::string::npos && is_primitive(type_tok) &&
+        type_tok != "time" && type_tok != "duration") {
+      Field f;
+      f.base_type = type_tok;
+      f.name = trim(rest.substr(0, eq));
+      f.is_constant = true;
+      f.const_value = trim(rest.substr(eq + 1));
+      fields.push_back(f);
+      continue;
+    }
+
+    Field f;
+    split_array(type_tok, &f.base_type, &f.is_array, &f.array_len);
+    f.name = rest;
+    fields.push_back(f);
+  }
+  return fields;
+}
+
+// ---------------------------------------------------------------- Value ----
+Value::Value(const DynamicMessage& m)
+    : k_(MSG), m_(new DynamicMessage(m)) {}
+Value::Value(std::vector<Value> a)
+    : k_(ARRAY), a_(new std::vector<Value>(std::move(a))) {}
+Value::Value(std::vector<uint8_t> b)
+    : k_(BYTES), raw_(new std::vector<uint8_t>(std::move(b))) {}
+
+Value::Value(const Value& o)
+    : k_(o.k_), i_(o.i_), u_(o.u_), d_(o.d_), t_(o.t_), du_(o.du_), s_(o.s_) {
+  if (o.m_) m_.reset(new DynamicMessage(*o.m_));
+  if (o.a_) a_.reset(new std::vector<Value>(*o.a_));
+  if (o.raw_) raw_.reset(new std::vector<uint8_t>(*o.raw_));
+}
+
+Value& Value::operator=(const Value& o) {
+  if (this == &o) return *this;
+  Value tmp(o);
+  *this = std::move(tmp);
+  return *this;
+}
+
+Value::Value(Value&& o) noexcept = default;
+Value& Value::operator=(Value&& o) noexcept = default;
+Value::~Value() = default;
+
+int64_t Value::as_i64() const {
+  switch (k_) {
+    case BOOL:
+    case INT: return i_;
+    case UINT: return static_cast<int64_t>(u_);
+    case REAL: return static_cast<int64_t>(d_);
+    default:
+      throw std::runtime_error("irap_noroslib: field is not a number (" + str() + ")");
+  }
+}
+
+double Value::as_f64() const {
+  switch (k_) {
+    case BOOL:
+    case INT: return static_cast<double>(i_);
+    case UINT: return static_cast<double>(u_);
+    case REAL: return d_;
+    default:
+      throw std::runtime_error("irap_noroslib: field is not a number (" + str() + ")");
+  }
+}
+
+std::string Value::as_string() const {
+  if (k_ != STRING) throw std::runtime_error("irap_noroslib: field is not a string");
+  return s_;
+}
+Time Value::as_time() const {
+  if (k_ != TIME) throw std::runtime_error("irap_noroslib: field is not a time");
+  return t_;
+}
+Duration Value::as_duration() const {
+  if (k_ != DURATION) throw std::runtime_error("irap_noroslib: field is not a duration");
+  return du_;
+}
+
+std::vector<Value>& Value::array() {
+  if (k_ != ARRAY) throw std::runtime_error("irap_noroslib: field is not an array");
+  return *a_;
+}
+const std::vector<Value>& Value::array() const {
+  if (k_ != ARRAY) throw std::runtime_error("irap_noroslib: field is not an array");
+  return *a_;
+}
+std::vector<uint8_t>& Value::bytes() {
+  if (k_ != BYTES) throw std::runtime_error("irap_noroslib: field is not a uint8[]");
+  return *raw_;
+}
+const std::vector<uint8_t>& Value::bytes() const {
+  if (k_ != BYTES) throw std::runtime_error("irap_noroslib: field is not a uint8[]");
+  return *raw_;
+}
+DynamicMessage& Value::msg() {
+  if (k_ != MSG) throw std::runtime_error("irap_noroslib: field is not a message");
+  return *m_;
+}
+const DynamicMessage& Value::msg() const {
+  if (k_ != MSG) throw std::runtime_error("irap_noroslib: field is not a message");
+  return *m_;
+}
+
+std::string Value::str() const {
+  std::ostringstream o;
+  switch (k_) {
+    case NONE: o << "<none>"; break;
+    case BOOL: o << (i_ ? "true" : "false"); break;
+    case INT: o << i_; break;
+    case UINT: o << u_; break;
+    case REAL: o << d_; break;
+    case STRING: o << '"' << s_ << '"'; break;
+    case TIME: o << t_.sec << "." << t_.nsec; break;
+    case DURATION: o << du_.sec << "." << du_.nsec; break;
+    case MSG: o << m_->str(); break;
+    case BYTES: o << "<" << raw_->size() << " bytes>"; break;
+    case ARRAY: {
+      o << "[";
+      for (size_t i = 0; i < a_->size(); ++i) {
+        if (i) o << ", ";
+        if (i == 8 && a_->size() > 10) { o << "... " << a_->size() << " items"; break; }
+        o << (*a_)[i].str();
+      }
+      o << "]";
+      break;
+    }
+  }
+  return o.str();
+}
+
+// -------------------------------------------------------------- MsgSpec ----
+MsgSpec::MsgSpec(std::string full_type, std::string text, Registry* reg)
+    : type_(std::move(full_type)), reg_(reg) {
+  size_t slash = type_.find('/');
+  pkg_ = slash == std::string::npos ? "" : type_.substr(0, slash);
+
+  // keep the text verbatim (minus edge newlines) -- it IS the message_definition
+  size_t a = text.find_first_not_of("\n");
+  size_t b = text.find_last_not_of("\n");
+  text_ = (a == std::string::npos) ? "" : text.substr(a, b - a + 1);
+
+  fields_ = parse_msg_text(text);
+  field_slot_.resize(fields_.size(), -1);
+  for (size_t i = 0; i < fields_.size(); ++i) {
+    if (fields_[i].is_constant) continue;
+    field_slot_[i] = nslots_;
+    slots_[fields_[i].name] = nslots_;
+    ++nslots_;
+  }
+}
+
+int MsgSpec::slot_of(const std::string& name) const {
+  auto it = slots_.find(name);
+  return it == slots_.end() ? -1 : it->second;
+}
+
+const Field* MsgSpec::field_of(const std::string& name) const {
+  for (const Field& f : fields_)
+    if (!f.is_constant && f.name == name) return &f;
+  return nullptr;
+}
+
+const Field* MsgSpec::constant(const std::string& name) const {
+  for (const Field& f : fields_)
+    if (f.is_constant && f.name == name) return &f;
+  return nullptr;
+}
+
+void MsgSpec::finalize() {
+  // -- md5 text: the exact ROS gentools rules.
+  //    constants first; builtin fields KEEP their array suffix; a complex field
+  //    is replaced by the sub-message's md5 with the brackets DROPPED. A bare
+  //    `Header` is not a primitive, so it takes the complex branch -- which is
+  //    what ROS does.
+  std::string consts, decls;
+  for (const Field& f : fields_) {
+    if (f.is_constant) {
+      consts += f.base_type + " " + f.name + "=" + f.const_value + "\n";
+      continue;
+    }
+    if (is_primitive(f.base_type)) {
+      std::string t = f.base_type;
+      if (f.is_array) {
+        t += "[";
+        if (f.array_len >= 0) t += std::to_string(f.array_len);
+        t += "]";
+      }
+      decls += t + " " + f.name + "\n";
+    } else {
+      std::string full = resolve_type(f.base_type, pkg_);
+      decls += reg_->spec(full)->md5() + " " + f.name + "\n";
+    }
+  }
+  md5_text_ = consts + decls;
+  if (!md5_text_.empty() && md5_text_.back() == '\n') md5_text_.pop_back();
+  md5_ = md5_hex(md5_text_);
+
+  // -- the concatenated message_definition: our text, then every dependency.
+  //    Walk on is_primitive (NOT "is builtin"), so a bare `Header` still pulls in
+  //    the MSG: std_msgs/Header block -- rostopic echo / rosbag need it.
+  std::vector<std::string> order;
+  std::set<std::string> seen;
+  std::function<void(const MsgSpec*)> walk = [&](const MsgSpec* s) {
+    for (const Field& f : s->fields_) {
+      if (f.is_constant || is_primitive(f.base_type)) continue;
+      std::string dep = resolve_type(f.base_type, s->pkg_);
+      if (seen.insert(dep).second) {
+        order.push_back(dep);
+        walk(reg_->spec(dep).get());
+      }
+    }
+  };
+  walk(this);
+
+  definition_ = text_;
+  for (const std::string& dep : order)
+    definition_ += "\n" + kSep + "\nMSG: " + dep + "\n" + reg_->spec(dep)->text();
+  definition_ += "\n";
+}
+
+Value MsgSpec::default_scalar(const std::string& base) const {
+  if (base == "bool") return Value(false);
+  if (base == "string") return Value(std::string());
+  if (base == "time") return Value(Time{});
+  if (base == "duration") return Value(Duration{});
+  if (base == "float32" || base == "float64") return Value(0.0);
+  if (base == "uint8" || base == "char" || base == "uint16" || base == "uint32" ||
+      base == "uint64")
+    return Value(static_cast<uint64_t>(0));
+  if (is_primitive(base)) return Value(static_cast<int64_t>(0));
+  return Value(reg_->spec(resolve_type(base, pkg_))->make_default());
+}
+
+Value MsgSpec::default_of(const Field& f) const {
+  if (!f.is_array) return default_scalar(f.base_type);
+  bool blob = f.base_type == "uint8" || f.base_type == "char";
+  if (blob) {
+    return Value(std::vector<uint8_t>(f.array_len >= 0 ? f.array_len : 0, 0));
+  }
+  std::vector<Value> a;
+  if (f.array_len >= 0)
+    for (int i = 0; i < f.array_len; ++i) a.push_back(default_scalar(f.base_type));
+  return Value(std::move(a));
+}
+
+DynamicMessage MsgSpec::make_default() const {
+  DynamicMessage m(reg_->spec(type_));
+  m.values().clear();
+  m.values().reserve(nslots_);
+  for (const Field& f : fields_) {
+    if (f.is_constant) continue;
+    m.values().push_back(default_of(f));
+  }
+  return m;
+}
+
+void MsgSpec::write_scalar(const std::string& base, const Value& v, Writer& w) const {
+  if (base == "bool") w.boolean(v.as<bool>());
+  else if (base == "int8" || base == "byte") w.i8(v.as<int8_t>());
+  else if (base == "uint8" || base == "char") w.u8(v.as<uint8_t>());
+  else if (base == "int16") w.i16(v.as<int16_t>());
+  else if (base == "uint16") w.u16(v.as<uint16_t>());
+  else if (base == "int32") w.i32(v.as<int32_t>());
+  else if (base == "uint32") w.u32(v.as<uint32_t>());
+  else if (base == "int64") w.i64(v.as<int64_t>());
+  else if (base == "uint64") w.u64(v.as<uint64_t>());
+  else if (base == "float32") w.f32(v.as<float>());
+  else if (base == "float64") w.f64(v.as<double>());
+  else if (base == "string") w.str(v.as<std::string>());
+  else if (base == "time") w.time(v.as<Time>());
+  else if (base == "duration") w.duration(v.as<Duration>());
+  else reg_->spec(resolve_type(base, pkg_))->write(v.msg(), w);
+}
+
+Value MsgSpec::read_scalar(const std::string& base, Reader& r) const {
+  if (base == "bool") return Value(r.boolean());
+  if (base == "int8" || base == "byte") return Value(static_cast<int64_t>(r.i8()));
+  if (base == "uint8" || base == "char") return Value(static_cast<uint64_t>(r.u8()));
+  if (base == "int16") return Value(static_cast<int64_t>(r.i16()));
+  if (base == "uint16") return Value(static_cast<uint64_t>(r.u16()));
+  if (base == "int32") return Value(static_cast<int64_t>(r.i32()));
+  if (base == "uint32") return Value(static_cast<uint64_t>(r.u32()));
+  if (base == "int64") return Value(static_cast<int64_t>(r.i64()));
+  if (base == "uint64") return Value(static_cast<uint64_t>(r.u64()));
+  if (base == "float32") return Value(static_cast<double>(r.f32()));
+  if (base == "float64") return Value(r.f64());
+  if (base == "string") return Value(r.str());
+  if (base == "time") return Value(r.time());
+  if (base == "duration") return Value(r.duration());
+  return Value(reg_->spec(resolve_type(base, pkg_))->read(r));
+}
+
+void MsgSpec::write_field(const Field& f, const Value& v, Writer& w) const {
+  if (!f.is_array) { write_scalar(f.base_type, v, w); return; }
+
+  bool blob = f.base_type == "uint8" || f.base_type == "char";
+  if (blob) {
+    const std::vector<uint8_t>& b = v.bytes();
+    if (f.array_len < 0) { w.bytes(b); return; }
+    std::vector<uint8_t> fixed(f.array_len, 0);   // pad/truncate, as ROS does
+    std::copy_n(b.begin(), std::min<size_t>(b.size(), f.array_len), fixed.begin());
+    w.raw(fixed);
+    return;
+  }
+
+  const std::vector<Value>& a = v.array();
+  if (f.array_len >= 0) {
+    if (a.size() != static_cast<size_t>(f.array_len))
+      throw std::runtime_error("irap_noroslib: fixed array '" + f.name + "' needs " +
+                               std::to_string(f.array_len) + " elements, got " +
+                               std::to_string(a.size()));
+  } else {
+    w.u32(static_cast<uint32_t>(a.size()));
+  }
+  for (const Value& e : a) write_scalar(f.base_type, e, w);
+}
+
+Value MsgSpec::read_field(const Field& f, Reader& r) const {
+  if (!f.is_array) return read_scalar(f.base_type, r);
+
+  bool blob = f.base_type == "uint8" || f.base_type == "char";
+  if (blob) {
+    size_t n = f.array_len >= 0 ? static_cast<size_t>(f.array_len) : r.u32();
+    return Value(r.raw(n));
+  }
+  size_t n = f.array_len >= 0 ? static_cast<size_t>(f.array_len) : r.u32();
+  std::vector<Value> a;
+  a.reserve(n);
+  for (size_t i = 0; i < n; ++i) a.push_back(read_scalar(f.base_type, r));
+  return Value(std::move(a));
+}
+
+void MsgSpec::write(const DynamicMessage& m, Writer& w) const {
+  for (size_t i = 0; i < fields_.size(); ++i) {
+    if (fields_[i].is_constant) continue;
+    write_field(fields_[i], m.values()[field_slot_[i]], w);
+  }
+}
+
+DynamicMessage MsgSpec::read(Reader& r) const {
+  DynamicMessage m(reg_->spec(type_));
+  m.values().clear();
+  m.values().reserve(nslots_);
+  for (const Field& f : fields_) {
+    if (f.is_constant) continue;
+    m.values().push_back(read_field(f, r));
+  }
+  return m;
+}
+
+// ------------------------------------------------------- DynamicMessage ----
+DynamicMessage::DynamicMessage(std::shared_ptr<const MsgSpec> spec)
+    : spec_(std::move(spec)) {
+  if (spec_) values_.resize(spec_->fields().size());
+}
+
+const std::string& DynamicMessage::type() const { return spec().type(); }
+
+const MsgSpec& DynamicMessage::spec() const {
+  if (!spec_) throw std::runtime_error("irap_noroslib: empty DynamicMessage");
+  return *spec_;
+}
+
+// "header.stamp", "poses[2].position.x"
+Value* DynamicMessage::resolve(const std::string& path, const MsgSpec** owner,
+                               const Field** field) const {
+  const MsgSpec* s = &spec();
+  Value* cur = nullptr;
+  std::vector<Value>* vals = &values_;
+
+  size_t i = 0;
+  while (i <= path.size()) {
+    size_t dot = path.find('.', i);
+    std::string tok = path.substr(i, dot == std::string::npos ? std::string::npos : dot - i);
+
+    int index = -1;
+    size_t br = tok.find('[');
+    if (br != std::string::npos && tok.back() == ']') {
+      index = std::atoi(tok.substr(br + 1, tok.size() - br - 2).c_str());
+      tok = tok.substr(0, br);
+    }
+
+    int slot = s->slot_of(tok);
+    if (slot < 0)
+      throw std::runtime_error("irap_noroslib: no field '" + tok + "' in " + s->type() +
+                               " (path '" + path + "')");
+    cur = &(*vals)[slot];
+    if (owner) *owner = s;
+    if (field) *field = s->field_of(tok);
+
+    if (index >= 0) {
+      if (cur->kind() == Value::BYTES)
+        throw std::runtime_error("irap_noroslib: index a uint8[] with bytes(\"" + tok +
+                                 "\") instead of [" + std::to_string(index) + "]");
+      std::vector<Value>& a = cur->array();
+      if (static_cast<size_t>(index) >= a.size())
+        throw std::runtime_error("irap_noroslib: index " + std::to_string(index) +
+                                 " out of range for '" + tok + "' (size " +
+                                 std::to_string(a.size()) + ")");
+      cur = &a[index];
+    }
+
+    if (dot == std::string::npos) break;
+
+    // step into a nested message for the next token
+    if (cur->kind() != Value::MSG)
+      throw std::runtime_error("irap_noroslib: '" + tok + "' is not a message, cannot "
+                               "follow '" + path + "'");
+    DynamicMessage& sub = cur->msg();
+    s = &sub.spec();
+    vals = &sub.values();
+    i = dot + 1;
+  }
+  return cur;
+}
+
+Value& DynamicMessage::at(const std::string& path) { return *resolve(path); }
+const Value& DynamicMessage::at(const std::string& path) const { return *resolve(path); }
+
+size_t DynamicMessage::size(const std::string& path) const {
+  const Value& v = at(path);
+  if (v.kind() == Value::BYTES) return v.bytes().size();
+  return v.array().size();
+}
+
+Value& DynamicMessage::append(const std::string& path) {
+  const MsgSpec* owner = nullptr;
+  const Field* f = nullptr;
+  Value* v = resolve(path, &owner, &f);
+  if (!f || !f->is_array)
+    throw std::runtime_error("irap_noroslib: append() needs an array field, '" + path +
+                             "' is not one");
+  std::vector<Value>& a = v->array();          // throws for a uint8[] blob
+  a.push_back(owner->default_element(*f));
+  return a.back();
+}
+
+std::vector<uint8_t> DynamicMessage::serialize() const {
+  Writer w;
+  spec().write(*this, w);
+  return w.b;
+}
+
+std::string DynamicMessage::str() const {
+  if (!spec_) return "<empty>";
+  std::ostringstream o;
+  std::string name = spec_->type();
+  size_t slash = name.find('/');
+  o << (slash == std::string::npos ? name : name.substr(slash + 1)) << "(";
+  bool first = true;
+  size_t slot = 0;
+  for (const Field& f : spec_->fields()) {
+    if (f.is_constant) continue;
+    if (!first) o << ", ";
+    first = false;
+    o << f.name << "=" << values_[slot].str();
+    ++slot;
+  }
+  o << ")";
+  return o.str();
+}
+
+// ------------------------------------------------------------- Registry ----
+Registry& Registry::global() {
+  static Registry r;
+  return r;
+}
+
+void Registry::ensure_builtins() {
+  if (seeded_ || seeding_) return;
+  seeding_ = true;
+  seed_builtin_types(*this);
+  seeding_ = false;
+  seeded_ = true;
+}
+
+MsgType Registry::register_msg(const std::string& full_type, const std::string& text) {
+  std::lock_guard<std::recursive_mutex> lk(mu_);
+  ensure_builtins();
+  return register_locked(full_type, text);
+}
+
+MsgType Registry::register_locked(const std::string& full_type, const std::string& text) {
+  if (full_type.find('/') == std::string::npos)
+    throw std::runtime_error("irap_noroslib: message type must be \"pkg/Type\", got \"" +
+                             full_type + "\"");
+
+  auto existing = specs_.find(full_type);
+  if (existing != specs_.end()) {
+    // idempotent for identical text; refuse a conflicting redefinition
+    MsgSpec probe(full_type, text, this);
+    if (probe.text() == existing->second->text()) return MsgType(existing->second);
+    throw std::runtime_error("irap_noroslib: \"" + full_type +
+                             "\" is already registered with different text; refusing "
+                             "to redefine it");
+  }
+
+  auto spec = std::make_shared<MsgSpec>(full_type, text, this);
+  specs_[full_type] = spec;          // insert BEFORE finalize, so a self-reference
+  try {                              // through a dependency can still find us
+    spec->finalize();                // needs every dependency registered
+  } catch (...) {
+    specs_.erase(full_type);
+    throw;
+  }
+  return MsgType(spec);
+}
+
+std::shared_ptr<const MsgSpec> Registry::spec(const std::string& full_type) {
+  std::lock_guard<std::recursive_mutex> lk(mu_);
+  ensure_builtins();
+  auto it = specs_.find(full_type);
+  if (it == specs_.end()) {
+    std::string name = full_type;
+    size_t slash = full_type.find('/');
+    std::string pkg = slash == std::string::npos ? "" : full_type.substr(0, slash);
+    if (slash != std::string::npos) name = full_type.substr(slash + 1);
+    throw std::runtime_error(
+        "irap_noroslib: unknown message type \"" + full_type +
+        "\". It is nested by a type you loaded, so load its file too:\n"
+        "    load_msg_file(\"/path/to/" + name + ".msg\", \"" + pkg + "\");");
+  }
+  return it->second;
+}
+
+MsgType Registry::get(const std::string& full_type) {
+  return MsgType(spec(full_type));
+}
+
+bool Registry::has(const std::string& full_type) {
+  std::lock_guard<std::recursive_mutex> lk(mu_);
+  ensure_builtins();
+  return specs_.count(full_type) != 0;
+}
+
+}  // namespace irap_noroslib
+
+// ===== src/msgfile.cpp =====
+// msgfile.cpp -- built-in seeding, and loading .msg/.srv/.action files from disk.
+
+
+
+namespace irap_noroslib {
+namespace {
+
+struct Builtin {
+  const char* type;
+  const char* text;   // the struct's own DEFINITION -- one source of truth
+  const char* md5;    // its hardcoded MD5, only so the self-test can compare
+};
+
+#define B(T) {T::TYPE, T::DEFINITION, T::MD5}
+
+const Builtin kBuiltins[] = {
+    // std_msgs (19)
+    B(std_msgs::String), B(std_msgs::Bool), B(std_msgs::Int32), B(std_msgs::Int64),
+    B(std_msgs::Float32), B(std_msgs::Float64), B(std_msgs::Header), B(std_msgs::Int8),
+    B(std_msgs::Int16), B(std_msgs::UInt8), B(std_msgs::UInt16), B(std_msgs::UInt32),
+    B(std_msgs::UInt64), B(std_msgs::Byte), B(std_msgs::Char), B(std_msgs::Empty),
+    B(std_msgs::Time), B(std_msgs::Duration), B(std_msgs::ColorRGBA),
+    // geometry_msgs (16)
+    B(geometry_msgs::Vector3), B(geometry_msgs::Point), B(geometry_msgs::Point32),
+    B(geometry_msgs::Quaternion), B(geometry_msgs::Twist), B(geometry_msgs::Accel),
+    B(geometry_msgs::Wrench), B(geometry_msgs::Pose), B(geometry_msgs::PoseStamped),
+    B(geometry_msgs::TwistStamped), B(geometry_msgs::PoseArray), B(geometry_msgs::Polygon),
+    B(geometry_msgs::Transform), B(geometry_msgs::TransformStamped),
+    B(geometry_msgs::PoseWithCovariance), B(geometry_msgs::TwistWithCovariance),
+    // sensor_msgs (14)
+    B(sensor_msgs::Image), B(sensor_msgs::CompressedImage), B(sensor_msgs::PointField),
+    B(sensor_msgs::PointCloud2), B(sensor_msgs::RegionOfInterest), B(sensor_msgs::Imu),
+    B(sensor_msgs::LaserScan), B(sensor_msgs::JointState), B(sensor_msgs::NavSatStatus),
+    B(sensor_msgs::NavSatFix), B(sensor_msgs::Range), B(sensor_msgs::Temperature),
+    B(sensor_msgs::MagneticField), B(sensor_msgs::CameraInfo),
+    // nav_msgs (5)
+    B(nav_msgs::MapMetaData), B(nav_msgs::Odometry), B(nav_msgs::Path),
+    B(nav_msgs::OccupancyGrid), B(nav_msgs::GridCells),
+    // diagnostic_msgs (3)
+    B(diagnostic_msgs::KeyValue), B(diagnostic_msgs::DiagnosticStatus),
+    B(diagnostic_msgs::DiagnosticArray),
+    // trajectory_msgs (4)
+    B(trajectory_msgs::JointTrajectoryPoint), B(trajectory_msgs::JointTrajectory),
+    B(trajectory_msgs::MultiDOFJointTrajectoryPoint),
+    B(trajectory_msgs::MultiDOFJointTrajectory),
+    // actionlib_msgs (3)
+    B(actionlib_msgs::GoalID), B(actionlib_msgs::GoalStatus),
+    B(actionlib_msgs::GoalStatusArray),
+};
+#undef B
+
+// std_srvs has no DEFINITION constants (only service-level md5s), so its texts
+// are spelled out here -- same as the Python side does.
+struct BuiltinSrv {
+  const char* type;
+  const char* req;
+  const char* resp;
+  const char* md5;
+};
+const BuiltinSrv kBuiltinSrvs[] = {
+    {"std_srvs/Empty", "", "", std_srvs::Empty::MD5},
+    {"std_srvs/Trigger", "", "bool success\nstring message", std_srvs::Trigger::MD5},
+    {"std_srvs/SetBool", "bool data", "bool success\nstring message",
+     std_srvs::SetBool::MD5},
+};
+
+std::string strip_ext(const std::string& name, const std::string& ext) {
+  if (name.size() <= ext.size() || name.compare(name.size() - ext.size(), ext.size(), ext) != 0)
+    throw std::runtime_error("irap_noroslib: expected a " + ext + " file, got \"" + name + "\"");
+  return name.substr(0, name.size() - ext.size());
+}
+
+/// "pkg/Type" for a file. `pkg` wins; else infer a <pkg>/<subdir>/<Type><ext> layout.
+std::string full_type_of(const std::string& path, const std::string& pkg,
+                         const std::string& subdir, const std::string& ext) {
+  std::string type_name = strip_ext(fs_basename(path), ext);
+  std::string p = pkg;
+  if (p.empty()) {
+    std::string parent = fs_dirname(path);
+    std::string grand = fs_dirname(parent);
+    if (fs_basename(parent) == subdir && !grand.empty()) {
+      p = fs_basename(grand);
+    } else {
+      throw std::runtime_error(
+          "irap_noroslib: cannot tell which ROS package \"" + path +
+          "\" belongs to. Pass the package name, e.g.\n"
+          "    load_" + subdir + "_file(\"" + path + "\", \"my_robot_msgs\");\n"
+          "ROS names a type \"pkg/" + type_name + "\", so it needs the package the "
+          "message came from.");
+    }
+  }
+  return p + "/" + type_name;
+}
+
+std::string read_file(const std::string& path) {
+  std::string full = fs_expand_user(path);
+  std::string text;
+  if (!fs_read_file(full, &text))
+    throw std::runtime_error("irap_noroslib: no such file: " + path);
+  return text;
+}
+
+/// Split .srv/.action text on lines that are exactly "---".
+std::vector<std::string> split_sections(const std::string& text, size_t n,
+                                        const std::string& what) {
+  std::vector<std::string> parts;
+  std::string cur;
+  std::string line;
+  auto flush_line = [&](const std::string& l) {
+    std::string t = l;
+    while (!t.empty() && (t.back() == ' ' || t.back() == '\t' || t.back() == '\r')) t.pop_back();
+    size_t a = t.find_first_not_of(" \t");
+    std::string trimmed = a == std::string::npos ? "" : t.substr(a);
+    if (trimmed == "---") {
+      parts.push_back(cur);
+      cur.clear();
+    } else {
+      cur += l;
+      cur += "\n";
+    }
+  };
+  for (char c : text) {
+    if (c == '\n') { flush_line(line); line.clear(); }
+    else { line += c; }
+  }
+  if (!line.empty()) flush_line(line);
+  parts.push_back(cur);
+
+  if (parts.size() != n)
+    throw std::runtime_error("irap_noroslib: " + what + ": expected " + std::to_string(n) +
+                             " sections separated by '---', found " +
+                             std::to_string(parts.size()));
+  for (std::string& p : parts)
+    if (p.empty()) p = "\n";
+  return parts;
+}
+
+}  // namespace
+
+// Called by Registry on first use. Registering from each struct's own DEFINITION
+// means there is no second copy of the .msg text to drift out of sync -- and the
+// md5 comes out *computed*, which selftest_builtin_md5() then checks against the
+// hardcoded constant.
+void seed_builtin_types(Registry& r) {
+  for (const Builtin& b : kBuiltins) r.register_msg(b.type, b.text);
+  for (const BuiltinSrv& s : kBuiltinSrvs) {
+    r.register_msg(std::string(s.type) + "Request", *s.req ? s.req : "\n");
+    r.register_msg(std::string(s.type) + "Response", *s.resp ? s.resp : "\n");
+  }
+}
+
+MsgType register_msg(const std::string& full_type, const std::string& text) {
+  return Registry::global().register_msg(full_type, text);
+}
+
+SrvType register_srv(const std::string& full_type, const std::string& request_text,
+                     const std::string& response_text) {
+  Registry& r = Registry::global();
+  MsgType req = r.register_msg(full_type + "Request",
+                               request_text.empty() ? "\n" : request_text);
+  MsgType resp = r.register_msg(full_type + "Response",
+                                response_text.empty() ? "\n" : response_text);
+  // The ROS rule: hash the two PRE-HASH texts concatenated -- not the two md5s.
+  std::string md5 = md5_hex(req.md5_text() + resp.md5_text());
+  return SrvType(full_type, md5, req, resp);
+}
+
+ActionType register_action(const std::string& full_type, const std::string& goal_text,
+                           const std::string& result_text,
+                           const std::string& feedback_text) {
+  Registry& r = Registry::global();
+  MsgType goal = r.register_msg(full_type + "Goal", goal_text.empty() ? "\n" : goal_text);
+  MsgType result = r.register_msg(full_type + "Result",
+                                  result_text.empty() ? "\n" : result_text);
+  MsgType feedback = r.register_msg(full_type + "Feedback",
+                                    feedback_text.empty() ? "\n" : feedback_text);
+  // The 4 wrappers ROS generates. Fully-qualified names, so no package context.
+  MsgType ag = r.register_msg(full_type + "ActionGoal",
+                              "std_msgs/Header header\nactionlib_msgs/GoalID goal_id\n" +
+                                  full_type + "Goal goal\n");
+  MsgType ar = r.register_msg(full_type + "ActionResult",
+                              "std_msgs/Header header\nactionlib_msgs/GoalStatus status\n" +
+                                  full_type + "Result result\n");
+  MsgType af = r.register_msg(full_type + "ActionFeedback",
+                              "std_msgs/Header header\nactionlib_msgs/GoalStatus status\n" +
+                                  full_type + "Feedback feedback\n");
+  MsgType action = r.register_msg(full_type + "Action",
+                                  full_type + "ActionGoal action_goal\n" + full_type +
+                                      "ActionResult action_result\n" + full_type +
+                                      "ActionFeedback action_feedback\n");
+  return ActionType(full_type, goal, result, feedback, ag, ar, af, action);
+}
+
+MsgType load_msg_file(const std::string& path, const std::string& pkg) {
+  std::string full = fs_expand_user(path);
+  return register_msg(full_type_of(full, pkg, "msg", ".msg"), read_file(full));
+}
+
+SrvType load_srv_file(const std::string& path, const std::string& pkg) {
+  std::string full = fs_expand_user(path);
+  std::string type = full_type_of(full, pkg, "srv", ".srv");
+  std::vector<std::string> s = split_sections(read_file(full), 2, type);
+  return register_srv(type, s[0], s[1]);
+}
+
+ActionType load_action_file(const std::string& path, const std::string& pkg) {
+  std::string full = fs_expand_user(path);
+  std::string type = full_type_of(full, pkg, "action", ".action");
+  std::vector<std::string> s = split_sections(read_file(full), 3, type);
+  return register_action(type, s[0], s[1], s[2]);
+}
+
+std::vector<MsgType> load_msg_files(const std::vector<std::string>& paths,
+                                    const std::string& pkg) {
+  std::vector<MsgType> out;
+  out.reserve(paths.size());
+  for (const std::string& p : paths) out.push_back(load_msg_file(p, pkg));
+  return out;
+}
+
+MsgType get_msg_type(const std::string& full_type) {
+  return Registry::global().get(full_type);
+}
+
+bool has_msg_type(const std::string& full_type) {
+  return Registry::global().has(full_type);
+}
+
+int selftest_builtin_md5(std::vector<std::string>* failures) {
+  Registry& r = Registry::global();
+  int n = 0;
+  for (const Builtin& b : kBuiltins) {
+    MsgType t = r.get(b.type);
+    ++n;
+    if (t.md5() != b.md5 && failures)
+      failures->push_back(std::string(b.type) + ": computed " + t.md5() + ", header says " +
+                          b.md5);
+  }
+  for (const BuiltinSrv& s : kBuiltinSrvs) {
+    std::string got = md5_hex(r.get(std::string(s.type) + "Request").md5_text() +
+                              r.get(std::string(s.type) + "Response").md5_text());
+    ++n;
+    if (got != s.md5 && failures)
+      failures->push_back(std::string(s.type) + ": computed " + got + ", header says " +
+                          s.md5);
+  }
+  return n;
 }
 
 }  // namespace irap_noroslib

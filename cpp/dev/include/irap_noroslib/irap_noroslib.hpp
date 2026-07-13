@@ -15,3 +15,9 @@
 #include "irap_noroslib/diagnostic_msgs.hpp"
 #include "irap_noroslib/trajectory_msgs.hpp"
 #include "irap_noroslib/actionlib_msgs.hpp"
+#include "irap_noroslib/std_srvs.hpp"
+#include "irap_noroslib/actionlib.hpp"
+// runtime .msg/.srv/.action file loading
+#include "irap_noroslib/msgfile.hpp"
+#include "irap_noroslib/dynamic_node.hpp"
+#include "irap_noroslib/dynamic_actionlib.hpp"

@@ -24,12 +24,17 @@ SRC = os.path.join(DEV, "src")
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CPP, "include", "irap_noroslib.hpp")
 
 # platform.hpp is handled specially (emitted verbatim, first); not in this list.
-HEADERS = ["message", "std_msgs", "geometry_msgs", "sensor_msgs",
-           "nav_msgs", "diagnostic_msgs", "trajectory_msgs",
-           "actionlib_msgs", "std_srvs", "net_util", "xmlrpc", "tcpros",
-           "udpros", "xmlrpc_client", "xmlrpc_server", "node", "actionlib"]
-SOURCES = ["net_util", "xmlrpc", "tcpros", "udpros", "xmlrpc_client",
-           "xmlrpc_server", "node"]
+# Full filenames -- md5calc is a .h, the rest are .hpp. Order is dependency order.
+HEADERS = ["message.hpp", "md5calc.h", "dynmsg.hpp",
+           "std_msgs.hpp", "geometry_msgs.hpp", "sensor_msgs.hpp",
+           "nav_msgs.hpp", "diagnostic_msgs.hpp", "trajectory_msgs.hpp",
+           "actionlib_msgs.hpp", "std_srvs.hpp", "msgfile.hpp",
+           "net_util.hpp", "xmlrpc.hpp", "tcpros.hpp",
+           "udpros.hpp", "xmlrpc_client.hpp", "xmlrpc_server.hpp", "node.hpp",
+           "dynamic_node.hpp", "actionlib.hpp", "dynamic_actionlib.hpp"]
+SOURCES = ["net_util.cpp", "xmlrpc.cpp", "tcpros.cpp", "udpros.cpp",
+           "xmlrpc_client.cpp", "xmlrpc_server.cpp", "node.cpp",
+           "dynmsg.cpp", "msgfile.cpp"]
 
 # System headers owned by platform.hpp (POSIX socket stack + Winsock). They must
 # NOT be hoisted to the top unconditionally -- platform.hpp includes them behind
@@ -38,6 +43,8 @@ PLATFORM_HEADERS = {
     "arpa/inet.h", "fcntl.h", "netdb.h", "netinet/in.h", "netinet/tcp.h",
     "sys/socket.h", "sys/time.h", "sys/select.h", "poll.h", "unistd.h",
     "winsock2.h", "ws2tcpip.h", "windows.h", "basetsd.h", "io.h",
+    # the filesystem shims platform.hpp owns (the .msg file loader needs them)
+    "dirent.h", "sys/stat.h", "sys/types.h",
 }
 
 SYS_INC = re.compile(r'^\s*#\s*include\s*<([^>]+)>')
@@ -70,13 +77,13 @@ def main():
     all_sys = set()
     hdr_bodies, src_bodies = [], []
     for h in HEADERS:
-        s, b = split_file(os.path.join(INC, h + ".hpp"))
+        s, b = split_file(os.path.join(INC, h))
         all_sys |= s
-        hdr_bodies.append("// ===== irap_noroslib/%s.hpp =====\n%s" % (h, b))
+        hdr_bodies.append("// ===== irap_noroslib/%s =====\n%s" % (h, b))
     for c in SOURCES:
-        s, b = split_file(os.path.join(SRC, c + ".cpp"))
+        s, b = split_file(os.path.join(SRC, c))
         all_sys |= s
-        src_bodies.append("// ===== src/%s.cpp =====\n%s" % (c, b))
+        src_bodies.append("// ===== src/%s =====\n%s" % (c, b))
 
     platform = read_verbatim_no_pragma(os.path.join(INC, "platform.hpp"))
 
