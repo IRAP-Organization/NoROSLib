@@ -35,19 +35,32 @@ namespace irap_noroslib {
 // --------------------------------------------------------------------------
 namespace {
 std::atomic<bool> g_shutdown{false};
+std::atomic<int> g_log_level{1};        // 0=debug 1=info 2=warn 3=error 4=none
 
-void log(const char* level, const std::string& msg) {
+void log(int level, const char* name, const std::string& msg) {
+  if (level < g_log_level.load()) return;
   int64_t sec = 0, nsec = 0; irap_noroslib::wall_time(&sec, &nsec);
-  std::printf("[%s] [%ld.%06ld]: %s\n", level, (long)sec, (long)(nsec / 1000),
-              msg.c_str());
-  std::fflush(stdout);
+  // stderr, not stdout: stdout is the program's data (think `nr_rostopic echo
+  // /topic > out.txt` -- log lines must not land in the file).
+  std::fprintf(stderr, "[%s] [%ld.%06ld]: %s\n", name, (long)sec, (long)(nsec / 1000),
+               msg.c_str());
+  std::fflush(stderr);
 }
 void on_sigint(int) { g_shutdown.store(true); }
 }  // namespace
 
-void loginfo(const std::string& m) { log("INFO", m); }
-void logwarn(const std::string& m) { log("WARN", m); }
-void logerr(const std::string& m) { log("ERROR", m); }
+void set_log_level(const std::string& level) {
+  if (level == "debug") g_log_level.store(0);
+  else if (level == "info") g_log_level.store(1);
+  else if (level == "warn") g_log_level.store(2);
+  else if (level == "error") g_log_level.store(3);
+  else if (level == "none") g_log_level.store(4);
+  else throw std::runtime_error("irap_noroslib: log level must be debug/info/warn/error/none");
+}
+
+void loginfo(const std::string& m) { log(1, "INFO", m); }
+void logwarn(const std::string& m) { log(2, "WARN", m); }
+void logerr(const std::string& m) { log(3, "ERROR", m); }
 
 // --------------------------------------------------------------------------
 // framed TCPROS message helpers: [4B LE length][body]
@@ -303,6 +316,14 @@ class Subscription {
 
   const std::string& topic() const { return topic_; }
   const std::string& type() const { return type_; }
+  const std::string& md5() const { return md5_; }
+  const std::string& definition() const { return definition_; }
+
+  /// Called once per connection with the publisher's type / md5 / definition.
+  using OnConnected = std::function<void(const std::string&, const std::string&,
+                                         const std::string&)>;
+  void set_on_connected(OnConnected f) { on_connected_ = std::move(f); }
+  void set_callback(RawCallback cb) { cb_ = std::move(cb); }
 
   void update_publishers(const std::vector<std::string>& uris) {
     std::lock_guard<std::mutex> lk(mu_);
@@ -415,6 +436,11 @@ class Subscription {
           md5_ = resp.at("md5sum");
           type_ = resp.count("type") ? resp.at("type") : type_;
         }
+        // The publisher hands us its full message definition here. Keep it: it is
+        // what lets a subscriber decode a type it has never seen (no .msg file).
+        if (resp.count("message_definition"))
+          definition_ = resp.at("message_definition");
+        if (on_connected_) on_connected_(type_, md5_, definition_);
         bool clean = receive_loop(fd);
         irap_noroslib::net_close(fd);
         return clean;
@@ -445,6 +471,8 @@ class Subscription {
   }
 
   std::string topic_, type_, md5_;
+  std::string definition_;          // learned from the publisher's handshake
+  OnConnected on_connected_;
   RawCallback cb_;
   std::string node_name_, host_, transport_;
   std::atomic<bool> running_{true};
@@ -602,9 +630,12 @@ class Node {
 
   std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::string& type,
                                           const std::string& md5, detail::RawCallback cb,
-                                          const std::string& transport) {
+                                          const std::string& transport,
+                                          Subscription::OnConnected on_connected = nullptr) {
     auto sub = std::make_shared<Subscription>(topic, type, md5, std::move(cb), name_, host_,
                                               transport);
+    // installed BEFORE we register, so no handshake can outrun it
+    if (on_connected) sub->set_on_connected(std::move(on_connected));
     {
       std::lock_guard<std::mutex> lk(mu_);
       subs_[topic] = sub;
@@ -826,6 +857,32 @@ std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::str
   return g_node->subscribe(topic, type, md5, std::move(cb), transport);
 }
 void unsubscribe(const std::shared_ptr<Subscription>& sub) { if (g_node) g_node->unsubscribe(sub); }
+
+std::shared_ptr<Subscription> subscribe_any(const std::string& topic, AnyCallback cb) {
+  // "*" is the ROS wildcard: the publisher accepts it and answers with its real
+  // type, md5 and message_definition. Both callbacks are installed before the
+  // subscription registers, so the handshake cannot outrun them.
+  struct Learned {
+    std::mutex mu;
+    std::string type, md5, def;
+  };
+  auto st = std::make_shared<Learned>();
+  return g_node->subscribe(
+      topic, "*", "*",
+      [st, cb](const std::vector<uint8_t>& body) {
+        std::string t, m, d;
+        {
+          std::lock_guard<std::mutex> lk(st->mu);
+          t = st->type; m = st->md5; d = st->def;
+        }
+        cb(t, m, d, body);
+      },
+      "tcpros",
+      [st](const std::string& t, const std::string& m, const std::string& d) {
+        std::lock_guard<std::mutex> lk(st->mu);
+        st->type = t; st->md5 = m; st->def = d;
+      });
+}
 
 std::shared_ptr<ServiceServer> advertise_service(const std::string& name, const std::string& type,
                                                  const std::string& md5,

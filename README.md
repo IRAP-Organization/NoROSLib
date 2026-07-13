@@ -109,6 +109,7 @@ it from elsewhere.
 | **Load `.msg`/`.srv`/`.action` files** | point it at a file copied off a robot | ✅ | ✅ |
 | **md5** | auto-computed **and** auto-discovered from mismatch | ✅ | ✅ |
 | **Config** | master URI + hostname from code | ✅ | ✅ |
+| **`nr_rostopic`** | list / echo / pub / info / hz / bw / find — `echo` works on types with no `.msg` | ✅ | ✅ |
 | **Master (`nr_roscore`)** | *be* the roscore: Master + Param Server (dict trees) + `/rosout` | ✅ | ✅ |
 
 ## Install
@@ -548,6 +549,55 @@ export ROS_MASTER_URI=http://localhost:11311
 python3 python/examples/listener.py &
 python3 python/examples/talker.py
 ```
+
+## `nr_rostopic` — `rostopic`, with no ROS installed
+
+The same subcommands and the same arguments as the real tool, so your muscle memory
+works. Available in **both languages** (`python3 -m irap_noroslib.rostopic`, or
+`nr_rostopic` once pip-installed; `./build/nr_rostopic` in C++).
+
+```bash
+nr_rostopic list [-v]                                # all topics (+ types, counts)
+nr_rostopic type   /chatter                          # std_msgs/String
+nr_rostopic info   /chatter                          # type, publishers, subscribers
+nr_rostopic find   std_msgs/String                   # topics of a type
+nr_rostopic echo [-n N] [--noarr] /chatter           # decode and print
+nr_rostopic hz     /chatter                          # publish rate
+nr_rostopic bw     /chatter                          # bandwidth
+nr_rostopic pub [-r HZ | -1] /chatter std_msgs/String "data: hi"
+```
+
+### `echo` does something real `rostopic` cannot
+
+Point it at a **custom message type you have no `.msg` file for** — one built on the
+robot, in a catkin package you don't have — and it still decodes it:
+
+```bash
+$ rostopic echo /custom            # the real tool, without the package built
+ERROR: Cannot load message class for [noros_stress_msgs/CustomData]. Are your messages built?
+
+$ nr_rostopic echo -n 1 /custom    # same shell, no .msg file, no catkin package
+header:
+  seq: 1
+  frame_id: "robot"
+id: 42
+samples: [1.5, 2.5]
+label: "hi"
+blob: [1, 2, 3]
+location:
+  x: 9.5
+valid: True
+---
+```
+
+Because a ROS publisher hands over the **full message definition** in the TCPROS
+handshake — its own text plus every nested dependency — irap_noroslib rebuilds the
+type on the spot and decodes the bytes. Real `rostopic echo` refuses, because it
+needs the message class *built* in a catkin package first.
+
+The same trick is available in your own code: `Subscriber(topic, None, cb)` in
+Python, `AnySubscriber` in C++ — subscribe to a topic whose type you have never
+seen and get a decoded message.
 
 ## Run your own ROS master — `nr_roscore`
 

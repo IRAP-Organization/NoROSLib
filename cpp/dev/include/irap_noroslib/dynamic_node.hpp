@@ -18,7 +18,9 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -71,6 +73,56 @@ class DynamicSubscriber {
           }
         },
         transport);
+  }
+
+  void shutdown() { detail::unsubscribe(sub_); }
+
+ private:
+  std::shared_ptr<detail::Subscription> sub_;
+};
+
+/// Subscribe to a topic whose type you do NOT know and have no .msg file for.
+///
+/// A ROS publisher hands over its full message definition during the TCPROS
+/// handshake, so the type is rebuilt on the spot and the message arrives decoded.
+/// This is what `nr_rostopic echo` runs on -- and it is strictly more than real
+/// `rostopic echo` can do, which needs the class built in a catkin package.
+///
+///   AnySubscriber sub("/whatever", [](const DynamicMessage& m, const MsgType& t) {
+///     loginfo(t.type() + ": " + m.str());
+///   });
+class AnySubscriber {
+ public:
+  using Callback = std::function<void(const DynamicMessage&, const MsgType&)>;
+
+  AnySubscriber(const std::string& topic, Callback cb) {
+    // one cached MsgType per type seen, so we parse the definition only once
+    auto cache = std::make_shared<std::map<std::string, MsgType>>();
+    auto mu = std::make_shared<std::mutex>();
+    sub_ = detail::subscribe_any(
+        topic,
+        [cache, mu, cb](const std::string& type, const std::string& md5,
+                        const std::string& definition,
+                        const std::vector<uint8_t>& body) {
+          (void)md5;
+          try {
+            MsgType t;
+            {
+              std::lock_guard<std::mutex> lk(*mu);
+              auto it = cache->find(type);
+              if (it != cache->end()) {
+                t = it->second;
+              } else {
+                t = has_msg_type(type) ? get_msg_type(type)
+                                       : register_msg_from_definition(type, definition);
+                (*cache)[type] = t;
+              }
+            }
+            cb(t.decode(body), t);
+          } catch (const std::exception& e) {
+            logwarn(std::string("cannot decode ") + type + ": " + e.what());
+          }
+        });
   }
 
   void shutdown() { detail::unsubscribe(sub_); }

@@ -37,6 +37,9 @@ void shutdown(const std::string& reason = "");
 void loginfo(const std::string& msg);
 void logwarn(const std::string& msg);
 void logerr(const std::string& msg);
+/// Silence the library's own logging: "debug", "info" (default), "warn", "error",
+/// "none". Handy for a CLI, where only the program's real output should show.
+void set_log_level(const std::string& level);
 
 // Like ros::Rate.
 class Rate {
@@ -75,6 +78,15 @@ std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::str
                                         const std::string& md5, RawCallback cb,
                                         const std::string& transport = "tcpros");
 void unsubscribe(const std::shared_ptr<Subscription>& sub);
+
+// Subscribe to a topic of ANY type: connect with a wildcard md5 and let the
+// publisher tell us what it is. The callback gets the type, md5 and the full
+// message definition from the handshake, plus the raw body -- enough to decode a
+// message we have never seen and have no .msg file for. See AnySubscriber.
+using AnyCallback = std::function<void(const std::string& type, const std::string& md5,
+                                       const std::string& definition,
+                                       const std::vector<uint8_t>& body)>;
+std::shared_ptr<Subscription> subscribe_any(const std::string& topic, AnyCallback cb);
 
 std::shared_ptr<ServiceServer> advertise_service(const std::string& name, const std::string& type,
                                                  const std::string& md5,

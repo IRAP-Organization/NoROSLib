@@ -199,3 +199,41 @@ def define_message(full_type, text):
 def get_message_class(full_type):
     """Look up a previously registered message class, or None."""
     return registry.get_class(full_type)
+
+
+def _split_definition(full_type, definition):
+    """Split a ROS `message_definition` into [(type, text), ...], main type first.
+
+    The connection header carries the type's own `.msg` text followed by every
+    dependency, each behind a `====...` / `MSG: pkg/Type` separator.
+    """
+    blocks, cur_type, cur = [], full_type, []
+    for line in definition.splitlines():
+        s = line.strip()
+        if s and s.strip("=") == "":          # the ==== separator line
+            continue
+        if s.startswith("MSG:"):
+            blocks.append((cur_type, "\n".join(cur)))
+            cur_type, cur = s[4:].strip(), []
+        else:
+            cur.append(line)
+    blocks.append((cur_type, "\n".join(cur)))
+    return blocks
+
+
+def define_message_from_definition(full_type, definition):
+    """Build a message class from a ROS `message_definition` string.
+
+    This is what lets us decode a topic we have no `.msg` file for: a ROS publisher
+    hands us the full definition (its own text plus every dependency) in the TCPROS
+    handshake, so the type can be reconstructed on the spot.
+
+    Types we already know are kept as-is -- real ROS ships the same definitions with
+    comments, which don't affect the md5 but would look like a conflicting
+    redefinition.
+    """
+    blocks = _split_definition(full_type, definition)
+    for t, text in reversed(blocks):          # dependencies first
+        if "/" in t and not registry.has(t):
+            registry.register(t, text)
+    return registry.get_class(full_type)

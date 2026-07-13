@@ -164,6 +164,49 @@ MsgType register_msg(const std::string& full_type, const std::string& text) {
   return Registry::global().register_msg(full_type, text);
 }
 
+MsgType register_msg_from_definition(const std::string& full_type,
+                                     const std::string& definition) {
+  // Split into (type, text) blocks: the main type, then each dependency behind a
+  // "====" separator line and a "MSG: pkg/Type" line.
+  std::vector<std::pair<std::string, std::string>> blocks;
+  std::string cur_type = full_type, cur, line;
+  auto flush_line = [&](const std::string& raw) {
+    std::string t = raw;
+    while (!t.empty() && (t.back() == ' ' || t.back() == '\t' || t.back() == '\r'))
+      t.pop_back();
+    size_t a = t.find_first_not_of(" \t");
+    std::string s = a == std::string::npos ? "" : t.substr(a);
+    if (!s.empty() && s.find_first_not_of('=') == std::string::npos)
+      return;                                    // the ==== separator line
+    if (s.rfind("MSG:", 0) == 0) {
+      blocks.emplace_back(cur_type, cur);
+      cur_type = s.substr(4);
+      size_t b = cur_type.find_first_not_of(" \t");
+      cur_type = b == std::string::npos ? "" : cur_type.substr(b);
+      cur.clear();
+      return;
+    }
+    cur += raw;
+    cur += "\n";
+  };
+  for (char c : definition) {
+    if (c == '\n') { flush_line(line); line.clear(); }
+    else { line += c; }
+  }
+  if (!line.empty()) flush_line(line);
+  blocks.emplace_back(cur_type, cur);
+
+  // Dependencies first. Skip anything already known: real ROS ships the same
+  // definitions with comments, which don't change the md5 but would look like a
+  // conflicting redefinition.
+  Registry& r = Registry::global();
+  for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
+    if (it->first.find('/') == std::string::npos) continue;
+    if (!r.has(it->first)) r.register_msg(it->first, it->second);
+  }
+  return r.get(full_type);
+}
+
 SrvType register_srv(const std::string& full_type, const std::string& request_text,
                      const std::string& response_text) {
   Registry& r = Registry::global();

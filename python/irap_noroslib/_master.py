@@ -80,6 +80,10 @@ class Master:
     def get_topic_types(self):
         return self._call("getTopicTypes")
 
+    def get_system_state(self):
+        """[publishers, subscribers, services], each [[name, [node, ...]], ...]."""
+        return self._call("getSystemState")
+
 
 def request_topic_tcpros(publisher_uri, caller_id, topic):
     """Call a publisher's slave API requestTopic; return (host, port)."""

@@ -99,6 +99,47 @@ static void collect_uris(const XmlValue& v, std::vector<std::string>* out) {
   for (const auto& e : v.arr) out->push_back(e.as_str());
 }
 
+bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
+                     std::vector<std::pair<std::string, std::string>>* topics,
+                     std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getTopicTypes", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  topics->clear();
+  for (const XmlValue& pair : value.arr)     // [[topic, type], ...]
+    if (pair.arr.size() >= 2)
+      topics->emplace_back(pair.arr[0].as_str(), pair.arr[1].as_str());
+  return true;
+}
+
+namespace {
+void collect_graph(const XmlValue& v, GraphMap* out) {
+  out->clear();
+  for (const XmlValue& entry : v.arr) {      // [[name, [node, ...]], ...]
+    if (entry.arr.size() < 2) continue;
+    std::vector<std::string> nodes;
+    for (const XmlValue& n : entry.arr[1].arr) nodes.push_back(n.as_str());
+    out->emplace_back(entry.arr[0].as_str(), std::move(nodes));
+  }
+}
+}  // namespace
+
+bool get_system_state(const std::string& master_uri, const std::string& caller_id,
+                      GraphMap* publishers, GraphMap* subscribers, GraphMap* services,
+                      std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getSystemState", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  if (value.arr.size() < 3) {
+    if (err) *err = "getSystemState: malformed reply";
+    return false;
+  }
+  if (publishers) collect_graph(value.arr[0], publishers);
+  if (subscribers) collect_graph(value.arr[1], subscribers);
+  if (services) collect_graph(value.arr[2], services);
+  return true;
+}
+
 bool register_subscriber(const std::string& master_uri, const std::string& caller_id,
                          const std::string& topic, const std::string& type,
                          const std::string& caller_api,

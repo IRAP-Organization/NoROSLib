@@ -17,6 +17,17 @@ bool xmlrpc_call(const std::string& uri, const std::string& method,
 
 // --- ROS master API wrappers -------------------------------------------------
 
+// getTopicTypes -> [(topic, type), ...]. Returns false on error.
+bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
+                     std::vector<std::pair<std::string, std::string>>* topics,
+                     std::string* err);
+
+// getSystemState -> publishers / subscribers, each [(name, [node, ...]), ...].
+using GraphMap = std::vector<std::pair<std::string, std::vector<std::string>>>;
+bool get_system_state(const std::string& master_uri, const std::string& caller_id,
+                      GraphMap* publishers, GraphMap* subscribers,
+                      GraphMap* services, std::string* err);
+
 // registerSubscriber -> list of current publisher URIs. Returns false on error.
 bool register_subscriber(const std::string& master_uri, const std::string& caller_id,
                          const std::string& topic, const std::string& type,

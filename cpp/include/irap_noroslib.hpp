@@ -2097,6 +2097,15 @@ class ActionType {
 
 // -- register from text (no file involved) -----------------------------------
 MsgType register_msg(const std::string& full_type, const std::string& text);
+
+/// Build a type from a ROS `message_definition` -- the type's own text followed by
+/// every dependency, each behind a `====` / `MSG: pkg/Type` separator.
+///
+/// This is what lets us decode a topic we have no `.msg` file for: a ROS publisher
+/// hands over the full definition in the TCPROS handshake, so the type can be
+/// reconstructed on the spot. Types already known are kept as they are.
+MsgType register_msg_from_definition(const std::string& full_type,
+                                     const std::string& definition);
 SrvType register_srv(const std::string& full_type, const std::string& request_text,
                      const std::string& response_text);
 ActionType register_action(const std::string& full_type, const std::string& goal_text,
@@ -2364,6 +2373,17 @@ bool xmlrpc_call(const std::string& uri, const std::string& method,
 
 // --- ROS master API wrappers -------------------------------------------------
 
+// getTopicTypes -> [(topic, type), ...]. Returns false on error.
+bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
+                     std::vector<std::pair<std::string, std::string>>* topics,
+                     std::string* err);
+
+// getSystemState -> publishers / subscribers, each [(name, [node, ...]), ...].
+using GraphMap = std::vector<std::pair<std::string, std::vector<std::string>>>;
+bool get_system_state(const std::string& master_uri, const std::string& caller_id,
+                      GraphMap* publishers, GraphMap* subscribers,
+                      GraphMap* services, std::string* err);
+
 // registerSubscriber -> list of current publisher URIs. Returns false on error.
 bool register_subscriber(const std::string& master_uri, const std::string& caller_id,
                          const std::string& topic, const std::string& type,
@@ -2522,6 +2542,9 @@ void shutdown(const std::string& reason = "");
 void loginfo(const std::string& msg);
 void logwarn(const std::string& msg);
 void logerr(const std::string& msg);
+/// Silence the library's own logging: "debug", "info" (default), "warn", "error",
+/// "none". Handy for a CLI, where only the program's real output should show.
+void set_log_level(const std::string& level);
 
 // Like ros::Rate.
 class Rate {
@@ -2560,6 +2583,15 @@ std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::str
                                         const std::string& md5, RawCallback cb,
                                         const std::string& transport = "tcpros");
 void unsubscribe(const std::shared_ptr<Subscription>& sub);
+
+// Subscribe to a topic of ANY type: connect with a wildcard md5 and let the
+// publisher tell us what it is. The callback gets the type, md5 and the full
+// message definition from the handshake, plus the raw body -- enough to decode a
+// message we have never seen and have no .msg file for. See AnySubscriber.
+using AnyCallback = std::function<void(const std::string& type, const std::string& md5,
+                                       const std::string& definition,
+                                       const std::vector<uint8_t>& body)>;
+std::shared_ptr<Subscription> subscribe_any(const std::string& topic, AnyCallback cb);
 
 std::shared_ptr<ServiceServer> advertise_service(const std::string& name, const std::string& type,
                                                  const std::string& md5,
@@ -2754,6 +2786,56 @@ class DynamicSubscriber {
           }
         },
         transport);
+  }
+
+  void shutdown() { detail::unsubscribe(sub_); }
+
+ private:
+  std::shared_ptr<detail::Subscription> sub_;
+};
+
+/// Subscribe to a topic whose type you do NOT know and have no .msg file for.
+///
+/// A ROS publisher hands over its full message definition during the TCPROS
+/// handshake, so the type is rebuilt on the spot and the message arrives decoded.
+/// This is what `nr_rostopic echo` runs on -- and it is strictly more than real
+/// `rostopic echo` can do, which needs the class built in a catkin package.
+///
+///   AnySubscriber sub("/whatever", [](const DynamicMessage& m, const MsgType& t) {
+///     loginfo(t.type() + ": " + m.str());
+///   });
+class AnySubscriber {
+ public:
+  using Callback = std::function<void(const DynamicMessage&, const MsgType&)>;
+
+  AnySubscriber(const std::string& topic, Callback cb) {
+    // one cached MsgType per type seen, so we parse the definition only once
+    auto cache = std::make_shared<std::map<std::string, MsgType>>();
+    auto mu = std::make_shared<std::mutex>();
+    sub_ = detail::subscribe_any(
+        topic,
+        [cache, mu, cb](const std::string& type, const std::string& md5,
+                        const std::string& definition,
+                        const std::vector<uint8_t>& body) {
+          (void)md5;
+          try {
+            MsgType t;
+            {
+              std::lock_guard<std::mutex> lk(*mu);
+              auto it = cache->find(type);
+              if (it != cache->end()) {
+                t = it->second;
+              } else {
+                t = has_msg_type(type) ? get_msg_type(type)
+                                       : register_msg_from_definition(type, definition);
+                (*cache)[type] = t;
+              }
+            }
+            cb(t.decode(body), t);
+          } catch (const std::exception& e) {
+            logwarn(std::string("cannot decode ") + type + ": " + e.what());
+          }
+        });
   }
 
   void shutdown() { detail::unsubscribe(sub_); }
@@ -4252,6 +4334,47 @@ static void collect_uris(const XmlValue& v, std::vector<std::string>* out) {
   for (const auto& e : v.arr) out->push_back(e.as_str());
 }
 
+bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
+                     std::vector<std::pair<std::string, std::string>>* topics,
+                     std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getTopicTypes", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  topics->clear();
+  for (const XmlValue& pair : value.arr)     // [[topic, type], ...]
+    if (pair.arr.size() >= 2)
+      topics->emplace_back(pair.arr[0].as_str(), pair.arr[1].as_str());
+  return true;
+}
+
+namespace {
+void collect_graph(const XmlValue& v, GraphMap* out) {
+  out->clear();
+  for (const XmlValue& entry : v.arr) {      // [[name, [node, ...]], ...]
+    if (entry.arr.size() < 2) continue;
+    std::vector<std::string> nodes;
+    for (const XmlValue& n : entry.arr[1].arr) nodes.push_back(n.as_str());
+    out->emplace_back(entry.arr[0].as_str(), std::move(nodes));
+  }
+}
+}  // namespace
+
+bool get_system_state(const std::string& master_uri, const std::string& caller_id,
+                      GraphMap* publishers, GraphMap* subscribers, GraphMap* services,
+                      std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getSystemState", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  if (value.arr.size() < 3) {
+    if (err) *err = "getSystemState: malformed reply";
+    return false;
+  }
+  if (publishers) collect_graph(value.arr[0], publishers);
+  if (subscribers) collect_graph(value.arr[1], subscribers);
+  if (services) collect_graph(value.arr[2], services);
+  return true;
+}
+
 bool register_subscriber(const std::string& master_uri, const std::string& caller_id,
                          const std::string& topic, const std::string& type,
                          const std::string& caller_api,
@@ -4597,19 +4720,32 @@ namespace irap_noroslib {
 // --------------------------------------------------------------------------
 namespace {
 std::atomic<bool> g_shutdown{false};
+std::atomic<int> g_log_level{1};        // 0=debug 1=info 2=warn 3=error 4=none
 
-void log(const char* level, const std::string& msg) {
+void log(int level, const char* name, const std::string& msg) {
+  if (level < g_log_level.load()) return;
   int64_t sec = 0, nsec = 0; irap_noroslib::wall_time(&sec, &nsec);
-  std::printf("[%s] [%ld.%06ld]: %s\n", level, (long)sec, (long)(nsec / 1000),
-              msg.c_str());
-  std::fflush(stdout);
+  // stderr, not stdout: stdout is the program's data (think `nr_rostopic echo
+  // /topic > out.txt` -- log lines must not land in the file).
+  std::fprintf(stderr, "[%s] [%ld.%06ld]: %s\n", name, (long)sec, (long)(nsec / 1000),
+               msg.c_str());
+  std::fflush(stderr);
 }
 void on_sigint(int) { g_shutdown.store(true); }
 }  // namespace
 
-void loginfo(const std::string& m) { log("INFO", m); }
-void logwarn(const std::string& m) { log("WARN", m); }
-void logerr(const std::string& m) { log("ERROR", m); }
+void set_log_level(const std::string& level) {
+  if (level == "debug") g_log_level.store(0);
+  else if (level == "info") g_log_level.store(1);
+  else if (level == "warn") g_log_level.store(2);
+  else if (level == "error") g_log_level.store(3);
+  else if (level == "none") g_log_level.store(4);
+  else throw std::runtime_error("irap_noroslib: log level must be debug/info/warn/error/none");
+}
+
+void loginfo(const std::string& m) { log(1, "INFO", m); }
+void logwarn(const std::string& m) { log(2, "WARN", m); }
+void logerr(const std::string& m) { log(3, "ERROR", m); }
 
 // --------------------------------------------------------------------------
 // framed TCPROS message helpers: [4B LE length][body]
@@ -4865,6 +5001,14 @@ class Subscription {
 
   const std::string& topic() const { return topic_; }
   const std::string& type() const { return type_; }
+  const std::string& md5() const { return md5_; }
+  const std::string& definition() const { return definition_; }
+
+  /// Called once per connection with the publisher's type / md5 / definition.
+  using OnConnected = std::function<void(const std::string&, const std::string&,
+                                         const std::string&)>;
+  void set_on_connected(OnConnected f) { on_connected_ = std::move(f); }
+  void set_callback(RawCallback cb) { cb_ = std::move(cb); }
 
   void update_publishers(const std::vector<std::string>& uris) {
     std::lock_guard<std::mutex> lk(mu_);
@@ -4977,6 +5121,11 @@ class Subscription {
           md5_ = resp.at("md5sum");
           type_ = resp.count("type") ? resp.at("type") : type_;
         }
+        // The publisher hands us its full message definition here. Keep it: it is
+        // what lets a subscriber decode a type it has never seen (no .msg file).
+        if (resp.count("message_definition"))
+          definition_ = resp.at("message_definition");
+        if (on_connected_) on_connected_(type_, md5_, definition_);
         bool clean = receive_loop(fd);
         irap_noroslib::net_close(fd);
         return clean;
@@ -5007,6 +5156,8 @@ class Subscription {
   }
 
   std::string topic_, type_, md5_;
+  std::string definition_;          // learned from the publisher's handshake
+  OnConnected on_connected_;
   RawCallback cb_;
   std::string node_name_, host_, transport_;
   std::atomic<bool> running_{true};
@@ -5164,9 +5315,12 @@ class Node {
 
   std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::string& type,
                                           const std::string& md5, detail::RawCallback cb,
-                                          const std::string& transport) {
+                                          const std::string& transport,
+                                          Subscription::OnConnected on_connected = nullptr) {
     auto sub = std::make_shared<Subscription>(topic, type, md5, std::move(cb), name_, host_,
                                               transport);
+    // installed BEFORE we register, so no handshake can outrun it
+    if (on_connected) sub->set_on_connected(std::move(on_connected));
     {
       std::lock_guard<std::mutex> lk(mu_);
       subs_[topic] = sub;
@@ -5388,6 +5542,32 @@ std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::str
   return g_node->subscribe(topic, type, md5, std::move(cb), transport);
 }
 void unsubscribe(const std::shared_ptr<Subscription>& sub) { if (g_node) g_node->unsubscribe(sub); }
+
+std::shared_ptr<Subscription> subscribe_any(const std::string& topic, AnyCallback cb) {
+  // "*" is the ROS wildcard: the publisher accepts it and answers with its real
+  // type, md5 and message_definition. Both callbacks are installed before the
+  // subscription registers, so the handshake cannot outrun them.
+  struct Learned {
+    std::mutex mu;
+    std::string type, md5, def;
+  };
+  auto st = std::make_shared<Learned>();
+  return g_node->subscribe(
+      topic, "*", "*",
+      [st, cb](const std::vector<uint8_t>& body) {
+        std::string t, m, d;
+        {
+          std::lock_guard<std::mutex> lk(st->mu);
+          t = st->type; m = st->md5; d = st->def;
+        }
+        cb(t, m, d, body);
+      },
+      "tcpros",
+      [st](const std::string& t, const std::string& m, const std::string& d) {
+        std::lock_guard<std::mutex> lk(st->mu);
+        st->type = t; st->md5 = m; st->def = d;
+      });
+}
 
 std::shared_ptr<ServiceServer> advertise_service(const std::string& name, const std::string& type,
                                                  const std::string& md5,
@@ -6260,6 +6440,49 @@ void seed_builtin_types(Registry& r) {
 
 MsgType register_msg(const std::string& full_type, const std::string& text) {
   return Registry::global().register_msg(full_type, text);
+}
+
+MsgType register_msg_from_definition(const std::string& full_type,
+                                     const std::string& definition) {
+  // Split into (type, text) blocks: the main type, then each dependency behind a
+  // "====" separator line and a "MSG: pkg/Type" line.
+  std::vector<std::pair<std::string, std::string>> blocks;
+  std::string cur_type = full_type, cur, line;
+  auto flush_line = [&](const std::string& raw) {
+    std::string t = raw;
+    while (!t.empty() && (t.back() == ' ' || t.back() == '\t' || t.back() == '\r'))
+      t.pop_back();
+    size_t a = t.find_first_not_of(" \t");
+    std::string s = a == std::string::npos ? "" : t.substr(a);
+    if (!s.empty() && s.find_first_not_of('=') == std::string::npos)
+      return;                                    // the ==== separator line
+    if (s.rfind("MSG:", 0) == 0) {
+      blocks.emplace_back(cur_type, cur);
+      cur_type = s.substr(4);
+      size_t b = cur_type.find_first_not_of(" \t");
+      cur_type = b == std::string::npos ? "" : cur_type.substr(b);
+      cur.clear();
+      return;
+    }
+    cur += raw;
+    cur += "\n";
+  };
+  for (char c : definition) {
+    if (c == '\n') { flush_line(line); line.clear(); }
+    else { line += c; }
+  }
+  if (!line.empty()) flush_line(line);
+  blocks.emplace_back(cur_type, cur);
+
+  // Dependencies first. Skip anything already known: real ROS ships the same
+  // definitions with comments, which don't change the md5 but would look like a
+  // conflicting redefinition.
+  Registry& r = Registry::global();
+  for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
+    if (it->first.find('/') == std::string::npos) continue;
+    if (!r.has(it->first)) r.register_msg(it->first, it->second);
+  }
+  return r.get(full_type);
 }
 
 SrvType register_srv(const std::string& full_type, const std::string& request_text,

@@ -19,6 +19,10 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 
+[project.scripts]
+nr_rostopic = "irap_noroslib.rostopic:main"
+nr_roscore = "irap_noroslib.roscore:main"
+
 [project.urls]
 Homepage = "https://github.com/IRAP-Organization/NoROSLib"
 Repository = "https://github.com/IRAP-Organization/NoROSLib"

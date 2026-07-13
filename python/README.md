@@ -85,6 +85,7 @@ a local roscore). The core examples mirror the C++ ones one-for-one.
 | `params_example.py` | parameters get/set/has/delete/search/list |
 | `udp_listener.py` | subscribe over UDPROS |
 | `nr_roscore.py` | run your own ROS master (roscore) |
+| `nr_rostopic` (`python3 -m irap_noroslib.rostopic`) | `rostopic` with no ROS: list / echo / pub / info / hz / bw / find |
 | `webcam_pub.py` | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` |
 | `ros_image_viewer.py` | a real rospy node that `cv2.imshow`s the webcam feed |
 

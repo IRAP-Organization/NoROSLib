@@ -23,7 +23,7 @@ from .node import (
     Publisher, Subscriber, Service, ServiceProxy, wait_for_service,
     get_param, set_param, has_param, delete_param, search_param, get_param_names,
     Rate, spin, sleep, now,
-    loginfo, logwarn, logerr,
+    loginfo, logwarn, logerr, set_log_level,
 )
 from .message import define_message, get_message_class, Message
 from .srv import define_service, ServiceException
@@ -41,7 +41,7 @@ __all__ = [
     "get_param", "set_param", "has_param", "delete_param", "search_param", "get_param_names",
     "Publisher", "Subscriber", "Service", "ServiceProxy", "wait_for_service",
     "Rate", "spin", "sleep", "now",
-    "loginfo", "logwarn", "logerr",
+    "loginfo", "logwarn", "logerr", "set_log_level",
     "define_message", "get_message_class", "Message", "msg",
     "define_service", "ServiceException", "srv",
     "define_action", "SimpleActionClient", "SimpleActionServer", "actionlib",

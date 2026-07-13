@@ -7,6 +7,7 @@ is_shutdown, signal_shutdown, loginfo/logwarn/logerr, get_node.
 """
 import os
 import socket
+import sys
 import threading
 import time
 from xmlrpc.server import SimpleXMLRPCServer
@@ -16,7 +17,7 @@ from . import _tcpros as tcpros
 from . import _udpros as udpros
 from ._master import (Master, MasterError, request_topic_tcpros,
                       request_topic_udpros)
-from .message import registry, get_message_class
+from .message import registry, get_message_class, define_message_from_definition
 from .srv import ServiceException
 
 _OK = lambda value=0, msg="": [1, msg, value]  # noqa: E731
@@ -25,8 +26,27 @@ _OK = lambda value=0, msg="": [1, msg, value]  # noqa: E731
 # --------------------------------------------------------------------------
 # logging
 # --------------------------------------------------------------------------
+_LEVELS = {"debug": 0, "info": 1, "warn": 2, "error": 3, "none": 4}
+_log_level = _LEVELS["info"]
+
+
+def set_log_level(level):
+    """Silence the library's own logging: "info" (default), "warn", "error", "none".
+
+    Useful for a CLI, where only the program's real output should be visible.
+    """
+    global _log_level
+    if level not in _LEVELS:
+        raise ValueError("log level must be one of %s" % ", ".join(_LEVELS))
+    _log_level = _LEVELS[level]
+
+
 def _log(level, msg):
-    print("[%s] [%.6f]: %s" % (level, time.time(), msg), flush=True)
+    if _LEVELS[level.lower()] < _log_level:
+        return
+    # stderr, not stdout: stdout is the program's data (think `nr_rostopic echo
+    # /topic > out.txt` -- log lines must not end up in the file).
+    print("[%s] [%.6f]: %s" % (level, time.time(), msg), file=sys.stderr, flush=True)
 
 
 def loginfo(msg):
@@ -459,6 +479,17 @@ class _Subscription:
                 if real_md5 != "*":
                     self.md5, self.type_name = real_md5, real_type
                 cls = self.msg_class or get_message_class(real_type)
+                if cls is None and resp.get("message_definition"):
+                    # We have never seen this type -- but the publisher just handed
+                    # us its full definition in the handshake, so build it on the
+                    # spot. This is what lets us decode a topic with no .msg file.
+                    try:
+                        cls = define_message_from_definition(
+                            real_type, resp["message_definition"])
+                        self.definition = resp["message_definition"]
+                    except Exception as e:  # noqa -- fall back to raw bytes
+                        logwarn("could not build %s from its definition: %s"
+                                % (real_type, e))
                 return sock, cls
             # md5 mismatch: learn the publisher's real type+md5 from the error
             sock.close()

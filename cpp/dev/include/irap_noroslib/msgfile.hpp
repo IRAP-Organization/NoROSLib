@@ -76,6 +76,15 @@ class ActionType {
 
 // -- register from text (no file involved) -----------------------------------
 MsgType register_msg(const std::string& full_type, const std::string& text);
+
+/// Build a type from a ROS `message_definition` -- the type's own text followed by
+/// every dependency, each behind a `====` / `MSG: pkg/Type` separator.
+///
+/// This is what lets us decode a topic we have no `.msg` file for: a ROS publisher
+/// hands over the full definition in the TCPROS handshake, so the type can be
+/// reconstructed on the spot. Types already known are kept as they are.
+MsgType register_msg_from_definition(const std::string& full_type,
+                                     const std::string& definition);
 SrvType register_srv(const std::string& full_type, const std::string& request_text,
                      const std::string& response_text);
 ActionType register_action(const std::string& full_type, const std::string& goal_text,
