@@ -235,30 +235,76 @@ If you'd rather not deal with md5s at all, load the file instead:
 
 ### Loading a `.msg` / `.srv` / `.action` **file** at runtime
 
-Copy the file off the robot and give irap_noroslib its **full path** — no catkin
-package, no ROS install, no struct to write, and **no md5 to look up**. It parses
-the file and derives the md5 exactly the way ROS does:
+Copy the files off the robot and give irap_noroslib the **full path of each one** —
+no catkin package, no ROS install, no struct to write, and **no md5 to look up**.
+It parses the file and derives the md5 exactly the way ROS does.
+
+Say you scp'd these off a robot running the package `my_robot_msgs`, and dropped
+them anywhere. There is no `package.xml`, no `msg/` directory — just files:
+
+```
+/home/me/robot_msgs/Reading.msg
+/home/me/robot_msgs/CustomData.msg
+/home/me/robot_msgs/GetStatus.srv
+```
+
+```
+# /home/me/robot_msgs/CustomData.msg
+std_msgs/Header header
+int32 id
+string label
+float64[] samples
+Reading[] readings          <-- a custom type from the same package
+geometry_msgs/Point where   <-- a built-in; nothing to do, it just resolves
+```
+
+**One file, one call**, each with its own full path:
 
 ```cpp
+#include "irap_noroslib.hpp"
 using namespace irap_noroslib;
 
-MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
+const std::string MSGS = "/home/me/robot_msgs";   // wherever you put them
+const std::string PKG  = "my_robot_msgs";         // the package they came from
 
+MsgType Reading    = load_msg_file(MSGS + "/Reading.msg",    PKG);
+MsgType CustomData = load_msg_file(MSGS + "/CustomData.msg", PKG);
+SrvType GetStatus  = load_srv_file(MSGS + "/GetStatus.srv",  PKG);
+
+init_node("my_node");
+
+// publish -- fields by name, nest with a dot, index with brackets
 DynamicPublisher pub("/data", CustomData);
 DynamicMessage m = CustomData.create();
 m.set("id", 7).set("label", "hi");
-m.set("header.frame_id", "base_link");        // nest with a dot
-m.set("where.x", 1.5);
+m.set("header.frame_id", "base_link");
+m.set_array("samples", std::vector<double>{1.0, 2.0});
+m.set("where.x", 3.0);
+m.append("readings").msg().set("value", 1.5).set("unit", "C");
 pub.publish(m);
 
+// subscribe
 DynamicSubscriber sub("/data", CustomData, [](const DynamicMessage& m) {
   loginfo(m.get<std::string>("label"));
-  double x = m.get<double>("where.x");
-  auto samples = m.get_array<double>("samples");     // arrays
-  auto blob    = m.bytes("blob");                    // uint8[]
-  auto unit    = m.get<std::string>("readings[1].unit");   // index into an array
+  double x     = m.get<double>("where.x");
+  auto samples = m.get_array<double>("samples");            // arrays
+  auto unit    = m.get<std::string>("readings[0].unit");    // index into an array
+  // auto blob = m.bytes("blob");                           // a uint8[] field
 });
 ```
+
+`Reading.msg` is loaded too, because `CustomData` nests it — **every custom type
+you use needs its own call**. Order doesn't matter, and if you forget one the error
+names the file to add:
+
+```
+irap_noroslib: unknown message type "my_robot_msgs/Reading". It is nested by a type
+you loaded, so load its file too:
+    load_msg_file("/path/to/Reading.msg", "my_robot_msgs");
+```
+
+Built-in types (`std_msgs/Header`, `geometry_msgs/Point`, …) need no call at all —
+all 64 are already there.
 
 **One file, one call.** Several custom messages? Load each by its own path — order
 doesn't matter, and if you forget one the error names the file to load. The second

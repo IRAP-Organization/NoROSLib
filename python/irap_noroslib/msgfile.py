@@ -133,10 +133,10 @@ def load_msg_files(paths, pkg=None):
 
 def _missing_type_hint(full_type):
     """Tell the user exactly which file they still have to load."""
-    name = full_type.split("/", 1)[1] if "/" in full_type else full_type
-    return ("unknown message type %r. It is nested by a type you loaded, so load "
-            "its file too:\n    load_msg_file(\"/path/to/%s.msg\", %r)"
-            % (full_type, name, full_type.split("/")[0]))
+    pkg, _, name = full_type.partition("/")
+    return ('unknown message type "%s". It is nested by a type you loaded, so load '
+            'its file too:\n    load_msg_file("/path/to/%s.msg", "%s")'
+            % (full_type, name or full_type, pkg))
 
 
 registry.missing_hint = _missing_type_hint

@@ -215,32 +215,69 @@ See `examples/custom_msg.py` and `examples/stamped_pub.py` / `stamped_sub.py`.
 
 ### Loading a `.msg` / `.srv` / `.action` **file**
 
-Already have the file? Copy it off the robot and give irap_noroslib its **full path** —
-no catkin package, no ROS install, nothing else:
+Already have the files? Copy them off the robot and give irap_noroslib the **full
+path of each one** — no catkin package, no ROS install, nothing else.
+
+Say you scp'd these off a robot running the package `my_robot_msgs`, and dropped
+them anywhere. There is no `package.xml`, no `msg/` directory — just files:
+
+```
+/home/me/robot_msgs/Reading.msg
+/home/me/robot_msgs/CustomData.msg
+/home/me/robot_msgs/GetStatus.srv
+```
+
+```
+# /home/me/robot_msgs/CustomData.msg
+std_msgs/Header header
+int32 id
+string label
+float64[] samples
+Reading[] readings          <-- a custom type from the same package
+geometry_msgs/Point where   <-- a built-in; nothing to do, it just resolves
+```
+
+**One file, one call**, each with its own full path:
 
 ```python
 import irap_noroslib
-from irap_noroslib import load_msg_file
+from irap_noroslib import load_msg_file, load_srv_file
 
-CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
+MSGS = "/home/me/robot_msgs"          # wherever you put them
+PKG  = "my_robot_msgs"                # the package they came from
+
+Reading    = load_msg_file(f"{MSGS}/Reading.msg",    PKG)
+CustomData = load_msg_file(f"{MSGS}/CustomData.msg", PKG)
+GetStatus  = load_srv_file(f"{MSGS}/GetStatus.srv",  PKG)
+
+irap_noroslib.init_node("my_node")
 
 pub = irap_noroslib.Publisher("/data", CustomData)
-pub.publish(CustomData(id=7, label="hi"))
+m = CustomData(id=7, label="hi", samples=[1.0, 2.0])
+m.header.frame_id = "base_link"
+m.readings = [Reading(value=1.5, unit="C")]
+m.where.x = 3.0
+pub.publish(m)
+
+irap_noroslib.Subscriber("/data", CustomData,
+                         lambda m: print(m.id, m.label, m.where.x))
 ```
+
+`Reading.msg` is loaded too, because `CustomData` nests it — **every custom type
+you use needs its own call**. Order doesn't matter, and if you forget one the error
+names the file to add:
+
+```
+unknown message type "my_robot_msgs/Reading". It is nested by a type you loaded,
+so load its file too:
+    load_msg_file("/path/to/Reading.msg", "my_robot_msgs")
+```
+
+Built-in types (`std_msgs/Header`, `geometry_msgs/Point`, …) need no call at all —
+all 64 are already there.
 
 The md5sum and the wire codec are derived from the file, so the type is exactly
 what real ROS computes — `rosmsg md5` agrees, and real ROS nodes accept it.
-
-**One file, one call.** Several custom messages? Load each by its own path:
-
-```python
-Reading = load_msg_file("/home/me/msgs/Reading.msg",      "my_robot_msgs")
-Custom  = load_msg_file("/home/me/msgs/CustomData.msg",   "my_robot_msgs")
-Nested  = load_msg_file("/home/me/msgs/StressNested.msg", "my_robot_msgs")
-```
-
-Order doesn't matter — a type that nests another (`Reading[] readings`) resolves it
-on first use. Forget one and the error names the file to add.
 
 The **package name** (`my_robot_msgs`) is the first half of the ROS type name
 `my_robot_msgs/CustomData`. ROS identifies types by that full name, so pass the

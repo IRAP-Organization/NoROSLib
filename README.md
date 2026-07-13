@@ -321,39 +321,110 @@ Example: `custom_msg` (shows two of them side by side).
 
 ### 1. Load the `.msg` file — easiest, and works in both languages
 
-Copy a `.msg` off the robot and hand irap_noroslib its **full path**. No catkin
-package, no ROS install, nothing to write:
+Copy the definition files off the robot and hand irap_noroslib the **full path of
+each one**. No catkin package, no ROS install, nothing to write.
+
+**Say you scp'd three files off a robot** running the package `my_robot_msgs`, and
+dropped them anywhere — there is no `package.xml`, no `msg/` directory, they are
+just files:
+
+```
+/home/me/robot_msgs/Reading.msg
+/home/me/robot_msgs/CustomData.msg
+/home/me/robot_msgs/GetStatus.srv
+```
+
+```
+# /home/me/robot_msgs/CustomData.msg
+std_msgs/Header header
+int32 id
+string label
+float64[] samples
+Reading[] readings          <-- a custom type from the same package
+geometry_msgs/Point where   <-- a built-in; nothing to do, it just resolves
+```
+
+**Load each file by its own full path.** One file, one call:
 
 ```python
-from irap_noroslib import load_msg_file, load_srv_file, load_action_file
+import irap_noroslib
+from irap_noroslib import load_msg_file, load_srv_file
 
-CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
-Srv        = load_srv_file("/home/me/msgs/MySrv.srv",      "my_robot_msgs")
-Act        = load_action_file("/home/me/msgs/MyAct.action", "my_robot_msgs")
+MSGS = "/home/me/robot_msgs"                       # wherever you put them
+PKG  = "my_robot_msgs"                             # the package they came from
 
+Reading    = load_msg_file(f"{MSGS}/Reading.msg",    PKG)
+CustomData = load_msg_file(f"{MSGS}/CustomData.msg", PKG)
+GetStatus  = load_srv_file(f"{MSGS}/GetStatus.srv",  PKG)
+
+irap_noroslib.init_node("my_node")
+
+# publish it
 pub = irap_noroslib.Publisher("/data", CustomData)
-pub.publish(CustomData(id=7, label="hi"))
+m = CustomData(id=7, label="hi", samples=[1.0, 2.0])
+m.header.frame_id = "base_link"
+m.readings = [Reading(value=1.5, unit="C")]
+m.where.x = 3.0
+pub.publish(m)
+
+# subscribe to it
+irap_noroslib.Subscriber("/data", CustomData,
+                         lambda m: print(m.id, m.label, m.where.x))
 ```
 
 ```cpp
+#include "irap_noroslib.hpp"
 using namespace irap_noroslib;
-MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
 
+const std::string MSGS = "/home/me/robot_msgs";    // wherever you put them
+const std::string PKG  = "my_robot_msgs";          // the package they came from
+
+MsgType Reading    = load_msg_file(MSGS + "/Reading.msg",    PKG);
+MsgType CustomData = load_msg_file(MSGS + "/CustomData.msg", PKG);
+SrvType GetStatus  = load_srv_file(MSGS + "/GetStatus.srv",  PKG);
+
+init_node("my_node");
+
+// publish it -- fields by name, nest with a dot, index with brackets
 DynamicPublisher pub("/data", CustomData);
 DynamicMessage m = CustomData.create();
-m.set("id", 7).set("label", "hi");            // fields by name
-m.set("header.frame_id", "base_link");        // nest with a dot
+m.set("id", 7).set("label", "hi");
+m.set("header.frame_id", "base_link");
+m.set_array("samples", std::vector<double>{1.0, 2.0});
+m.set("where.x", 3.0);
+m.append("readings").msg().set("value", 1.5).set("unit", "C");
 pub.publish(m);
+
+// subscribe to it
+DynamicSubscriber sub("/data", CustomData, [](const DynamicMessage& m) {
+  loginfo(m.get<std::string>("label"));
+  double x = m.get<double>("where.x");
+  auto unit = m.get<std::string>("readings[0].unit");   // index into an array
+});
 ```
+
+Note `Reading.msg` is loaded too, because `CustomData` nests it — **every custom
+type you use needs its own call**, one per file. Order doesn't matter, and if you
+forget one the error tells you exactly which file to add:
+
+```
+unknown message type "my_robot_msgs/Reading". It is nested by a type you loaded,
+so load its file too:
+    load_msg_file("/path/to/Reading.msg", "my_robot_msgs")
+```
+
+Built-in types (`std_msgs/Header`, `geometry_msgs/Point`, …) need no call at all —
+all 64 are already there.
+
+**Why the second argument?** ROS names a type `pkg/Type`, so it needs the package
+the message came from — the `my_robot_msgs` in `my_robot_msgs/CustomData`. A loose
+file can't tell you that, so you pass it. (If the file still sits in a real catkin
+layout, `<pkg>/msg/<Type>.msg`, it's inferred and you can omit it.)
 
 The md5sum and the wire codec are **derived from the file** by the exact ROS
 algorithm, so the type is precisely what `rosmsg md5` computes and real ROS nodes
-accept it. **One file, one call** — several custom messages means several calls,
-each with its own path (order doesn't matter). `load_action_file` registers all 7
-ROS action types for you.
-
-The second argument is the ROS package the message came from — the `my_robot_msgs`
-in `my_robot_msgs/CustomData` — because ROS names types `pkg/Type`.
+accept it. `load_action_file` works the same way and registers all 7 ROS action
+types for you.
 
 C++ also gets `DynamicSubscriber`, `DynamicServiceServer`, `DynamicServiceClient`,
 `DynamicActionClient` and `DynamicActionServer`: the usual classes with the
