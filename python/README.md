@@ -276,6 +276,27 @@ so load its file too:
 Built-in types (`std_msgs/Header`, `geometry_msgs/Point`, …) need no call at all —
 all 64 are already there.
 
+#### Does the package name matter? — yes, get it right
+
+ROS names a type `pkg/Type`, so a loose file can't tell you the `pkg` and you pass
+it. (Only if the file still sits in a real catkin layout — `<pkg>/msg/<Type>.msg` —
+is it inferred, and then you can omit it.)
+
+It is **not** part of the md5sum, so a wrong package name does *not* by itself break
+the connection: ROS validates the md5, and a real subscriber will happily accept
+your data. That makes a typo here quietly harmful rather than loudly fatal. It
+matters for two things:
+
+- **Nested types by bare name.** `Reading[] readings` inside `my_robot_msgs/CustomData`
+  means `my_robot_msgs/Reading`. Give the wrong package and it looks for
+  `wrong_pkg/Reading`, which doesn't exist — the load fails outright.
+- **Everything type-aware in ROS.** The name you pass is the type real ROS sees.
+  Get it wrong and `rostopic echo` gives
+  `ERROR: Cannot load message class for [wrong_pkg/CustomData]`, `rosbag` records
+  the wrong type, and anything checking the type string is misled — even though the
+  bytes on the wire are perfectly correct.
+
+
 The md5sum and the wire codec are derived from the file, so the type is exactly
 what real ROS computes — `rosmsg md5` agrees, and real ROS nodes accept it.
 
