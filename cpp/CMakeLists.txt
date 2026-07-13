@@ -30,17 +30,17 @@ foreach(ex talker listener custom_msg md5_discovery
   target_link_libraries(${ex} irap_noroslib)
 endforeach()
 
-# Optional OpenCV demos: webcam_pub + image_viewer. OpenCV is NOT a dependency of
+# Optional OpenCV demos: webcam_pub + webcam_sub. OpenCV is NOT a dependency of
 # irap_noroslib -- the core links zero third-party libs. These two examples build ONLY if
 # OpenCV happens to be installed; the rest of the library never needs it.
 find_package(OpenCV QUIET)
 if(OpenCV_FOUND)
-  foreach(ex webcam_pub image_viewer)
+  foreach(ex webcam_pub webcam_sub)
     add_executable(${ex} examples/${ex}.cpp)
     target_include_directories(${ex} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(${ex} irap_noroslib ${OpenCV_LIBS})
   endforeach()
-  message(STATUS "irap_noroslib: OpenCV found -> building webcam_pub + image_viewer")
+  message(STATUS "irap_noroslib: OpenCV found -> building webcam_pub + webcam_sub")
 else()
-  message(STATUS "irap_noroslib: OpenCV not found -> skipping webcam_pub + image_viewer (optional)")
+  message(STATUS "irap_noroslib: OpenCV not found -> skipping webcam_pub + webcam_sub (optional)")
 endif()

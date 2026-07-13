@@ -1,17 +1,20 @@
-// irap_noroslib image viewer (C++): subscribe to the images webcam_pub publishes and show
-// them with OpenCV. This is the C++ counterpart of ros_image_viewer.py — except
-// that one is a real rospy node, whereas this receives the frames through irap_noroslib
-// (no ROS linked) and only uses OpenCV to decode + display.
+// irap_noroslib webcam subscriber (C++): receive the images webcam_pub sends, and show
+// them. The mirror of webcam_pub.cpp, and the same example as webcam_sub.py.
+//
+// No ROS linked on this side — irap_noroslib decodes the ROS wire format itself and
+// hands you the bytes; OpenCV only turns them back into a picture.
 //
 //     /irap_noroslib/image_raw              sensor_msgs/Image           (bgr8)
 //     /irap_noroslib/image_raw/compressed   sensor_msgs/CompressedImage (jpeg)
 //
-//   ./webcam_pub          (publisher, with a roscore running)
-//   ./image_viewer        (this)
+//   ./webcam_pub        (publisher, with a roscore running)
+//   ./webcam_sub        (this)
+//
+// The publisher can equally be a real ROS node — the wire format is the same.
 //
 // REQUIRES OpenCV (cv::imshow / cv::imdecode). OpenCV is NOT a dependency of irap_noroslib
 // itself — only this optional demo needs it. Build:
-//   g++ -std=c++17 image_viewer.cpp irap_noroslib_impl.cpp -o image_viewer \
+//   g++ -std=c++17 webcam_sub.cpp irap_noroslib_impl.cpp -o webcam_sub \
 //       -pthread $(pkg-config --cflags --libs opencv4)
 #include "irap_noroslib.hpp"
 #include "irap_noroslib/sensor_msgs/Image.h"
@@ -26,7 +29,7 @@ int main() {
   const char* hn = std::getenv("ROS_HOSTNAME");
   irap_noroslib::set_master_uri(mu ? mu : "http://localhost:11311");
   irap_noroslib::set_hostname(hn ? hn : "localhost");
-  irap_noroslib::init_node("irap_noroslib_image_viewer");
+  irap_noroslib::init_node("irap_noroslib_webcam_sub");
 
   std::mutex mu_frames;
   cv::Mat raw_img, comp_img;
@@ -48,7 +51,7 @@ int main() {
       });
 
   const bool gui = std::getenv("DISPLAY") != nullptr;
-  irap_noroslib::loginfo(std::string("irap_noroslib image viewer up; gui=") + (gui ? "yes" : "no (headless)"));
+  irap_noroslib::loginfo(std::string("irap_noroslib webcam_sub up; gui=") + (gui ? "yes" : "no (headless)"));
   irap_noroslib::Rate rate(50);
   int ticks = 0;
   while (irap_noroslib::ok()) {

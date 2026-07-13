@@ -18,7 +18,7 @@ pip install -e ./python
 
 **No dependencies — just Python 3.6+.** The ROS communication library is pure
 standard library; `requirements.txt` is intentionally empty and documents that
-you install nothing to talk to ROS. (The `webcam_pub.py` / `ros_image_viewer.py`
+you install nothing to talk to ROS. (The `webcam_pub.py` / `webcam_sub.py` / `ros_image_viewer.py`
 demos are the only examples that want extra packages — OpenCV, and for the
 viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 
@@ -87,6 +87,7 @@ a local roscore). The core examples mirror the C++ ones one-for-one.
 | `nr_roscore.py` | run your own ROS master (roscore) |
 | `nr_rostopic` (`python3 -m irap_noroslib.rostopic`) | `rostopic` with no ROS: list / echo / pub / info / hz / bw / find |
 | `webcam_pub.py` | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` |
+| `webcam_sub.py` | subscribe those images and show them (`cv2.imshow`) |
 | `ros_image_viewer.py` | a real rospy node that `cv2.imshow`s the webcam feed |
 
 ## Configuration (from code, no env vars)
