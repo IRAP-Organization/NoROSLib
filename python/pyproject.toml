@@ -23,5 +23,5 @@ classifiers = [
 Homepage = "https://github.com/IRAP-Organization/NoROSLib"
 Repository = "https://github.com/IRAP-Organization/NoROSLib"
 
-[tool.setuptools]
-packages = ["irap_noroslib"]
+[tool.setuptools.packages.find]
+include = ["irap_noroslib*"]

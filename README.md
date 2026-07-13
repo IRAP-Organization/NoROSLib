@@ -129,14 +129,22 @@ Then:
 
 ```python
 import irap_noroslib
-from irap_noroslib import msg
+from irap_noroslib.std_msgs.msg import String     # the rospy path, prefixed
 
 irap_noroslib.init_node("talker")
-pub = irap_noroslib.Publisher("/chatter", msg.String)
+pub = irap_noroslib.Publisher("/chatter", String)
 rate = irap_noroslib.Rate(10)
 while not irap_noroslib.is_shutdown():
-    pub.publish(msg.String(data="hello world"))
+    pub.publish(String(data="hello world"))
     rate.sleep()
+```
+
+Messages import on the **same path rospy uses**, just prefixed — porting a node is
+a one-word edit:
+
+```python
+from std_msgs.msg import String              # rospy
+from irap_noroslib.std_msgs.msg import String  # irap_noroslib
 ```
 
 See [`python/README.md`](python/README.md).
@@ -159,6 +167,14 @@ on Linux/macOS/WSL, `-lws2_32` on MinGW (MSVC auto-links Winsock). CMake ≥ 3.1
 optional, only to build the bundled examples. Full details in
 [`cpp/DEPENDENCIES.md`](cpp/DEPENDENCIES.md). (OpenCV is needed *only* by the two
 optional webcam examples, never by the library.)
+
+Messages also have the **same include path roscpp uses**, just prefixed — and the
+type names are untouched, because messages keep their real ROS namespaces:
+
+```cpp
+#include "std_msgs/String.h"                 // roscpp
+#include "irap_noroslib/std_msgs/String.h"   // irap_noroslib  -> still std_msgs::String
+```
 
 ```cpp
 #include "irap_noroslib.hpp"

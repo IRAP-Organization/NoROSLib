@@ -209,6 +209,39 @@ def test_service_md5_and_roundtrip():
     assert AddTwoInts.Response.deserialize(resp.serialize()).sum == 7
 
 
+def test_ros_style_imports():
+    """`from irap_noroslib.std_msgs.msg import String` must yield the SAME class
+    object as `irap_noroslib.msg.String` -- the ROS-style paths are re-exports, not
+    copies. If they ever diverge, md5s and the type registry diverge with them.
+
+    Walks the WHOLE catalog, so a message added to irap_noroslib.msg without a
+    matching ROS-style alias fails here instead of surprising a user."""
+    import importlib
+    import irap_noroslib.msg as flat_msg
+    import irap_noroslib.srv as flat_srv
+
+    checked = 0
+    for name in dir(flat_msg):
+        cls = getattr(flat_msg, name)
+        full = getattr(cls, "_type", None)
+        if not isinstance(full, str) or "/" not in full:
+            continue
+        pkg, ty = full.split("/")
+        if ty != name:          # skip aliases like msg.Header under another name
+            continue
+        mod = importlib.import_module("irap_noroslib.%s.msg" % pkg)
+        assert hasattr(mod, ty), \
+            "missing ROS-style alias: irap_noroslib.%s.msg.%s" % (pkg, ty)
+        assert getattr(mod, ty) is cls, \
+            "irap_noroslib.%s.msg.%s is not irap_noroslib.msg.%s" % (pkg, ty, ty)
+        checked += 1
+    assert checked == 64, "expected the 64-type catalog, walked %d" % checked
+
+    srv_mod = importlib.import_module("irap_noroslib.std_srvs.srv")
+    for n in ("Empty", "Trigger", "SetBool"):
+        assert getattr(srv_mod, n) is getattr(flat_srv, n)
+
+
 if __name__ == "__main__":
     test_md5()
     test_roundtrip_builtins()
@@ -217,4 +250,5 @@ if __name__ == "__main__":
     test_extended_catalog_md5()
     test_service_md5_and_roundtrip()
     test_action_md5()
+    test_ros_style_imports()
     print("all message + service + action tests passed")

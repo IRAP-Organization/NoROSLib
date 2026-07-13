@@ -152,6 +152,23 @@ Headers: `irap_noroslib/{std_msgs,geometry_msgs,sensor_msgs,nav_msgs,diagnostic_
 
 ### How to use them
 
+**ROS-style includes.** Every type has a header on the exact path roscpp uses,
+just prefixed with `irap_noroslib/` — so porting a roscpp node is a one-word edit:
+
+```cpp
+// roscpp                              // irap_noroslib
+#include "std_msgs/String.h"           #include "irap_noroslib/std_msgs/String.h"
+#include "geometry_msgs/Twist.h"       #include "irap_noroslib/geometry_msgs/Twist.h"
+#include "sensor_msgs/Image.h"         #include "irap_noroslib/sensor_msgs/Image.h"
+#include "std_srvs/Trigger.h"          #include "irap_noroslib/std_srvs/Trigger.h"
+```
+
+The type names are unchanged — `std_msgs::String`, `geometry_msgs::Twist` — because
+messages live in their real ROS namespaces; only the library's own API is under
+`irap_noroslib::`. All seven message packages and `std_srvs` are covered. Each of
+these headers just pulls in the single header, so `#include "irap_noroslib.hpp"`
+alone still gives you everything.
+
 Each type is a plain struct — construct it, set fields, publish. Nested messages,
 `std::vector<>` arrays, `std_msgs::Header`, and `time`/`duration` all work:
 

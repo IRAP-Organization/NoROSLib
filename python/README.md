@@ -114,7 +114,23 @@ library** — the two are in lock-step.
 
 ### How to use them
 
-Get a message class two ways — attribute or full name:
+**ROS-style imports.** Every type is importable on the exact path rospy uses,
+just prefixed with `irap_noroslib` — so porting a rospy node is a one-word edit:
+
+```python
+# rospy                                 # irap_noroslib
+from std_msgs.msg import String         from irap_noroslib.std_msgs.msg import String
+from geometry_msgs.msg import Twist     from irap_noroslib.geometry_msgs.msg import Twist
+from sensor_msgs.msg import Image       from irap_noroslib.sensor_msgs.msg import Image
+from std_srvs.srv import Trigger        from irap_noroslib.std_srvs.srv import Trigger
+```
+
+All seven message packages (`std_msgs`, `geometry_msgs`, `sensor_msgs`,
+`nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `actionlib_msgs`) and
+`std_srvs` work this way. These are the *same* class objects as the ones below —
+re-exported, not copies — so the md5sums and the registry stay identical.
+
+Or get a class from the flat module — by attribute, or by full name:
 
 ```python
 from irap_noroslib import msg
