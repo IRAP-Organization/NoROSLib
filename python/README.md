@@ -193,7 +193,10 @@ irap_noroslib.Subscriber("/odom", msg.Odometry,
 
 Not in the catalog? Define it in one line from `.msg` text — irap_noroslib derives the
 md5sum and wire codec. Nesting built-ins (or your own registered types) works;
-a `std_msgs/Header` first field is handled for you:
+a `std_msgs/Header` first field is handled for you.
+
+*(If you already **have** the `.msg` file, skip this and just
+[load it](#loading-a-msg--srv--action-file) — same result, no retyping.)*
 
 ```python
 from irap_noroslib import define_message

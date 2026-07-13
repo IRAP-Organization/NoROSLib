@@ -204,8 +204,13 @@ but our version has [.../4193...]. Dropping connection.
 ```
 
 irap_noroslib **reads the publisher's real md5 out of that error, adopts it, and
-reconnects** — so you never get stuck on an md5 you got wrong. Discovery is
-symmetric: irap_noroslib emits the same error to peers that present a wrong md5 to it.
+reconnects** — so you never get stuck on an md5 you got wrong when *subscribing*.
+
+This rescues the **subscriber** side. It cannot fix a publisher: if you *advertise*
+with a wrong md5, real ROS subscribers reject you and there is no error to learn
+from. (irap_noroslib plays the other role too, emitting the same rejection to peers
+that present a wrong md5 to it.) If you don't want to think about md5s at all,
+load the `.msg` file and let irap_noroslib derive it — see [Custom messages](#custom-messages).
 
 ## Publish / subscribe
 
@@ -304,37 +309,81 @@ md5 and codec from the `.msg` text.
 
 ## Custom messages
 
-Ship your own message type. Its md5sum is derived by the exact ROS algorithm (so
-it matches `rosmsg md5 <type>` and interoperates), or — if you don't know it —
-irap_noroslib discovers the publisher's real md5 from the handshake. Example: `custom_msg`.
+Your own message type, three ways. All three produce the **same wire bytes and the
+same md5sum**, so they interoperate freely with each other and with real ROS.
+Example: `custom_msg` (shows two of them side by side).
 
-### Python — one call from `.msg` text
+| | You give it | md5sum | Both languages? |
+|---|---|---|:---:|
+| **1. Load the `.msg` file** | the file's path | **derived for you** | ✅ |
+| **2. From `.msg` text, in code** | the text | **derived for you** | Python |
+| **3. A hand-written struct** | fields + codec + **the md5** | you supply it | C++ |
+
+### 1. Load the `.msg` file — easiest, and works in both languages
+
+Copy a `.msg` off the robot and hand irap_noroslib its **full path**. No catkin
+package, no ROS install, nothing to write:
 
 ```python
-import irap_noroslib
+from irap_noroslib import load_msg_file, load_srv_file, load_action_file
+
+CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
+Srv        = load_srv_file("/home/me/msgs/MySrv.srv",      "my_robot_msgs")
+Act        = load_action_file("/home/me/msgs/MyAct.action", "my_robot_msgs")
+
+pub = irap_noroslib.Publisher("/data", CustomData)
+pub.publish(CustomData(id=7, label="hi"))
+```
+
+```cpp
+using namespace irap_noroslib;
+MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
+
+DynamicPublisher pub("/data", CustomData);
+DynamicMessage m = CustomData.create();
+m.set("id", 7).set("label", "hi");            // fields by name
+m.set("header.frame_id", "base_link");        // nest with a dot
+pub.publish(m);
+```
+
+The md5sum and the wire codec are **derived from the file** by the exact ROS
+algorithm, so the type is precisely what `rosmsg md5` computes and real ROS nodes
+accept it. **One file, one call** — several custom messages means several calls,
+each with its own path (order doesn't matter). `load_action_file` registers all 7
+ROS action types for you.
+
+The second argument is the ROS package the message came from — the `my_robot_msgs`
+in `my_robot_msgs/CustomData` — because ROS names types `pkg/Type`.
+
+C++ also gets `DynamicSubscriber`, `DynamicServiceServer`, `DynamicServiceClient`,
+`DynamicActionClient` and `DynamicActionServer`: the usual classes with the
+compile-time type replaced by a loaded one.
+
+### 2. From `.msg` text, in code *(Python)*
+
+```python
 from irap_noroslib import define_message
 
-# md5 + wire codec derived automatically from the .msg text
+# md5 + wire codec derived automatically from the text
 Pose2D = define_message("my_pkg/Pose2D", """
     float64 x
     float64 y
     float64 theta
 """)
 
-irap_noroslib.init_node("pub")
 pub = irap_noroslib.Publisher("/pose", Pose2D)
 pub.publish(Pose2D(x=1.0, y=2.0, theta=3.14))
-# subscribe: irap_noroslib.Subscriber("/pose", Pose2D, lambda m: print(m.x, m.y, m.theta))
 ```
 
-Nest other registered types by full name (`std_msgs/Header header`, `my_pkg/Pose2D[] poses`),
-use constants (`uint8 FOO=1`), fixed/variable arrays, and all ROS builtins.
+Nest other registered types by full name (`std_msgs/Header header`,
+`my_pkg/Pose2D[] poses`), use constants (`uint8 FOO=1`), fixed/variable arrays, and
+every ROS builtin.
 
-### C++ — a small struct
+### 3. A hand-written struct *(C++)* — fully typed, zero overhead
 
-A irap_noroslib message is any struct with the three static strings + the two codec
-functions (use `irap_noroslib::Writer` / `irap_noroslib::Reader`, little-endian, length-prefixed —
-the ROS recipe):
+The typed, zero-cost option. Note the trade-off: **you must supply the md5
+yourself** (`rosmsg md5 <type>`) — nothing derives it for you here. If you'd rather
+not, use option 1.
 
 ```cpp
 #include "irap_noroslib.hpp"
@@ -355,58 +404,22 @@ struct Pose2D {
 // irap_noroslib::Publisher<Pose2D> pub("/pose");  /  irap_noroslib::Subscriber<Pose2D> sub("/pose", cb);
 ```
 
-Don't know the md5? Put anything and let irap_noroslib discover the publisher's real one
-from the mismatch error (see the md5-discovery feature above). For a stamped
-message, make the first field a `Header` (Python: `std_msgs/Header header`; C++:
-compose `std_msgs::Header` in your codec) — see the `stamped_pub`/`stamped_sub`
-examples.
+Getting the md5 wrong here matters: a **publisher** with a bad md5 is rejected by
+real ROS subscribers. (md5 *discovery* — described above — rescues the **subscriber**
+side only: it learns the publisher's real md5 from the rejection and reconnects. It
+cannot fix a publisher.)
 
-### Already have the `.msg` file? Just load it
+For a stamped message, make the first field a `Header` (Python: `std_msgs/Header
+header`; C++: compose `std_msgs::Header` in your codec) — see `stamped_pub` /
+`stamped_sub`.
 
-Copy a `.msg` off the robot and hand irap_noroslib its **full path**. No catkin
-package, no ROS install — just the file. Works in **both languages**:
-
-```python
-from irap_noroslib import load_msg_file, load_srv_file, load_action_file
-
-CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
-Srv        = load_srv_file("/home/me/msgs/MySrv.srv",      "my_robot_msgs")
-Act        = load_action_file("/home/me/msgs/MyAct.action", "my_robot_msgs")
-
-pub = irap_noroslib.Publisher("/data", CustomData)
-pub.publish(CustomData(id=7, label="hi"))
-```
-
-```cpp
-using namespace irap_noroslib;
-MsgType CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs");
-
-DynamicPublisher pub("/data", CustomData);
-DynamicMessage m = CustomData.create();
-m.set("id", 7).set("label", "hi");     // fields by name; nest with "header.frame_id"
-pub.publish(m);
-```
-
-The md5sum and the wire codec come straight from the file, so the type is exactly
-what real ROS computes and real ROS nodes accept it. **One file, one call** — if
-you have several custom messages, load each by its own path (order doesn't
-matter). `load_action_file` registers all 7 ROS action types for you.
-
-The second argument is the ROS package the message came from — the `my_robot_msgs`
-in `my_robot_msgs/CustomData` — because ROS names types `pkg/Type`.
-
-C++ gets `DynamicPublisher` / `DynamicSubscriber` / `DynamicServiceServer` /
-`DynamicServiceClient` / `DynamicActionClient` / `DynamicActionServer`, which are the
-usual classes with the compile-time type replaced by a loaded one. A runtime-loaded
-type and a hand-written struct produce identical bytes and identical md5s, so they
-interoperate freely.
+---
 
 Verified end-to-end: a custom package built on real ROS with `catkin_make`, then
 loaded from its bare files — in **both** languages all 11 md5s (3 messages, a
 service, 7 action types) match `rosmsg md5` / `rossrv md5`, and the types flow
 **both ways** against genuine rospy nodes over topics, a service and an action.
-See [`python/README.md`](python/README.md) / [`cpp/README.md`](cpp/README.md), and
-the `custom_msg` example, which shows both ways of defining a type side by side.
+Details in [`python/README.md`](python/README.md) / [`cpp/README.md`](cpp/README.md).
 
 ## Examples
 

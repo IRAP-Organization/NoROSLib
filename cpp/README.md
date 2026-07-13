@@ -217,16 +217,27 @@ irap_noroslib::Subscriber<nav_msgs::Odometry> sub("/odom",
 
 ### Your own message types
 
-Not in the catalog? Write a small struct with the three static strings
-(`TYPE`, `MD5`, `DEFINITION`) plus `serialize()`/`deserialize()` using
-`irap_noroslib::Writer` / `irap_noroslib::Reader`. See `examples/custom_msg.cpp`, and
+Two ways. Both produce the same wire bytes and the same md5, so they interoperate:
+
+| | You give it | md5sum |
+|---|---|---|
+| **Load the `.msg` file** *(below)* | the file's path | **derived for you** |
+| **A hand-written struct** | fields + codec + **the md5** | you supply it |
+
+**A struct** is the typed, zero-overhead option: the three static strings (`TYPE`,
+`MD5`, `DEFINITION`) plus `serialize()`/`deserialize()` built on `irap_noroslib::Writer`
+/ `irap_noroslib::Reader`. The catch is the **`MD5` — you must supply it yourself**
+(`rosmsg md5 <type>`); nothing derives it for you on this path, and a publisher with
+a wrong md5 is rejected by real ROS subscribers. See `examples/custom_msg.cpp`, and
 `examples/sensor_reading.hpp` for one with a `std_msgs::Header`.
+
+If you'd rather not deal with md5s at all, load the file instead:
 
 ### Loading a `.msg` / `.srv` / `.action` **file** at runtime
 
-Already have the file? Copy it off the robot and give irap_noroslib its **full
-path** — no catkin package, no ROS install, no struct to write, and no md5 to look
-up. It parses the file and derives the md5 exactly the way ROS does:
+Copy the file off the robot and give irap_noroslib its **full path** — no catkin
+package, no ROS install, no struct to write, and **no md5 to look up**. It parses
+the file and derives the md5 exactly the way ROS does:
 
 ```cpp
 using namespace irap_noroslib;
