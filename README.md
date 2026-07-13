@@ -106,6 +106,7 @@ it from elsewhere.
 | **Actions** (actionlib) | 5 action topics | ✅ | ✅ |
 | **Parameters** | master XML-RPC | ✅ | ✅ |
 | **Messages** | std/geometry/sensor/nav/diagnostic/trajectory + custom | ✅ | ✅ |
+| **Load `.msg`/`.srv`/`.action` files** | point it at a file copied off a robot | ✅ | — |
 | **md5** | auto-computed **and** auto-discovered from mismatch | ✅ | ✅ |
 | **Config** | master URI + hostname from code | ✅ | ✅ |
 | **Master (`nr_roscore`)** | *be* the roscore: Master + Param Server (dict trees) + `/rosout` | ✅ | ✅ |
@@ -359,6 +360,39 @@ from the mismatch error (see the md5-discovery feature above). For a stamped
 message, make the first field a `Header` (Python: `std_msgs/Header header`; C++:
 compose `std_msgs::Header` in your codec) — see the `stamped_pub`/`stamped_sub`
 examples.
+
+### Already have the `.msg` file? Just load it *(Python)*
+
+Copy a `.msg` off the robot and hand irap_noroslib its **full path**. No catkin
+package, no ROS install — just the file:
+
+```python
+from irap_noroslib import load_msg_file, load_srv_file, load_action_file
+
+CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
+Srv        = load_srv_file("/home/me/msgs/MySrv.srv",      "my_robot_msgs")
+Act        = load_action_file("/home/me/msgs/MyAct.action", "my_robot_msgs")
+
+pub = irap_noroslib.Publisher("/data", CustomData)
+pub.publish(CustomData(id=7, label="hi"))
+```
+
+The md5sum and the wire codec come straight from the file, so the type is exactly
+what real ROS computes and real ROS nodes accept it. **One file, one call** — if
+you have several custom messages, load each by its own path (order doesn't
+matter). `load_action_file` registers all 7 ROS action types for you.
+
+The second argument is the ROS package the message came from — the `my_robot_msgs`
+in `my_robot_msgs/CustomData` — because ROS names types `pkg/Type`.
+
+Verified end-to-end: a custom package built on real ROS with `catkin_make`, then
+loaded from its bare files — all 11 md5s (3 messages, a service, 7 action types)
+match `rosmsg md5` / `rossrv md5`, and the types flow **both ways** against genuine
+rospy nodes over topics, a service and an action. Details in
+[`python/README.md`](python/README.md).
+
+> C++ still needs its message types written as structs (see below) — the runtime
+> file loader is Python-only for now.
 
 ## Examples
 

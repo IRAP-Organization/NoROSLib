@@ -35,11 +35,13 @@
   #endif
 #else
   #include <arpa/inet.h>
+  #include <dirent.h>
   #include <fcntl.h>
   #include <netdb.h>
   #include <netinet/in.h>
   #include <netinet/tcp.h>
   #include <sys/socket.h>
+  #include <sys/stat.h>
   #include <sys/time.h>
   #include <time.h>
   #include <unistd.h>
@@ -48,6 +50,11 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace irap_noroslib {
 
@@ -171,6 +178,103 @@ inline void wall_time(int64_t* sec, int64_t* nsec) {
   *sec = ts.tv_sec;
   *nsec = ts.tv_nsec;
 #endif
+}
+
+// -- filesystem (used by the runtime .msg/.srv/.action file loader) ----------
+//
+// Deliberately NOT <filesystem>: that needs -lstdc++fs on GCC 8 / -lc++fs on
+// Clang 7-8 (i.e. Ubuntu 18.04 / ROS Melodic), which would break irap_noroslib's
+// promise of "one header, -std=c++17 -pthread". dirent/FindFirstFile is enough.
+// These live in platform.hpp because it is the one file the amalgamator emits
+// verbatim -- elsewhere the conditional <dirent.h> would get hoisted out of its
+// #if and break the Windows build.
+
+inline bool fs_is_dir(const std::string& path) {
+#if defined(_WIN32)
+  DWORD a = GetFileAttributesA(path.c_str());
+  return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  return ::stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+inline bool fs_is_file(const std::string& path) {
+#if defined(_WIN32)
+  DWORD a = GetFileAttributesA(path.c_str());
+  return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  return ::stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
+
+// Entry names in `dir` (no "." / ".."), unsorted. Empty if dir is unreadable.
+inline std::vector<std::string> fs_list_dir(const std::string& dir) {
+  std::vector<std::string> out;
+#if defined(_WIN32)
+  WIN32_FIND_DATAA fd;
+  HANDLE h = FindFirstFileA((dir + "\\*").c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE) return out;
+  do {
+    std::string n = fd.cFileName;
+    if (n != "." && n != "..") out.push_back(n);
+  } while (FindNextFileA(h, &fd));
+  FindClose(h);
+#else
+  DIR* d = ::opendir(dir.c_str());
+  if (!d) return out;
+  while (struct dirent* e = ::readdir(d)) {
+    std::string n = e->d_name;
+    if (n != "." && n != "..") out.push_back(n);
+  }
+  ::closedir(d);
+#endif
+  return out;
+}
+
+inline bool fs_read_file(const std::string& path, std::string* out) {
+  std::ifstream f(path.c_str(), std::ios::binary);
+  if (!f) return false;
+  std::ostringstream ss;
+  ss << f.rdbuf();
+  *out = ss.str();
+  return true;
+}
+
+inline std::string fs_home() {
+  const char* h = std::getenv("HOME");
+  if (h && *h) return h;
+  const char* u = std::getenv("USERPROFILE");     // Windows
+  return u ? u : "";
+}
+
+// Expand a leading "~" to the home directory.
+inline std::string fs_expand_user(const std::string& path) {
+  if (path.empty() || path[0] != '~') return path;
+  std::string home = fs_home();
+  if (home.empty()) return path;
+  if (path.size() == 1) return home;
+  if (path[1] == '/' || path[1] == '\\') return home + path.substr(1);
+  return path;
+}
+
+inline std::string fs_join(const std::string& a, const std::string& b) {
+  if (a.empty()) return b;
+  char last = a[a.size() - 1];
+  if (last == '/' || last == '\\') return a + b;
+  return a + "/" + b;
+}
+
+// Everything before the final separator ("" if there is none).
+inline std::string fs_dirname(const std::string& path) {
+  size_t i = path.find_last_of("/\\");
+  return i == std::string::npos ? std::string() : path.substr(0, i);
+}
+
+inline std::string fs_basename(const std::string& path) {
+  size_t i = path.find_last_of("/\\");
+  return i == std::string::npos ? path : path.substr(i + 1);
 }
 
 }  // namespace irap_noroslib

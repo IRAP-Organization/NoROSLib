@@ -23,12 +23,24 @@
 
 namespace irap_noroslib {
 
+// ROS `time` and `duration` as values. (The compile-time message structs flatten
+// these into their own uint32 pairs; these are what the runtime .msg loader uses.)
+struct Time {
+  uint32_t sec = 0, nsec = 0;
+  bool operator==(const Time& o) const { return sec == o.sec && nsec == o.nsec; }
+};
+struct Duration {
+  int32_t sec = 0, nsec = 0;
+  bool operator==(const Duration& o) const { return sec == o.sec && nsec == o.nsec; }
+};
+
 // little-endian write buffer
 struct Writer {
   std::vector<uint8_t> b;
   void u8(uint8_t v) { b.push_back(v); }
   void i8(int8_t v) { b.push_back(static_cast<uint8_t>(v)); }
   void u16(uint16_t v) { b.push_back(v); b.push_back(v >> 8); }
+  void i16(int16_t v) { u16(static_cast<uint16_t>(v)); }
   void i32(int32_t v) { u32(static_cast<uint32_t>(v)); }
   void u32(uint32_t v) {
     b.push_back(v); b.push_back(v >> 8); b.push_back(v >> 16); b.push_back(v >> 24);
@@ -46,6 +58,10 @@ struct Writer {
     u32(static_cast<uint32_t>(v.size()));
     b.insert(b.end(), v.begin(), v.end());
   }
+  void time(const Time& t) { u32(t.sec); u32(t.nsec); }
+  void duration(const Duration& d) { i32(d.sec); i32(d.nsec); }
+  // raw bytes with NO length prefix -- a fixed-size uint8[N] field
+  void raw(const std::vector<uint8_t>& v) { b.insert(b.end(), v.begin(), v.end()); }
 };
 
 // little-endian read cursor
@@ -57,6 +73,7 @@ struct Reader {
   uint8_t u8() { need(1); return *p++; }
   int8_t i8() { return static_cast<int8_t>(u8()); }
   uint16_t u16() { need(2); uint16_t v = p[0] | (p[1] << 8); p += 2; return v; }
+  int16_t i16() { return static_cast<int16_t>(u16()); }
   int32_t i32() { return static_cast<int32_t>(u32()); }
   uint32_t u32() {
     need(4);
@@ -79,6 +96,12 @@ struct Reader {
   std::vector<uint8_t> bytes() {
     uint32_t n = u32(); need(n);
     std::vector<uint8_t> v(p, p + n); p += n; return v;
+  }
+  Time time() { Time t; t.sec = u32(); t.nsec = u32(); return t; }
+  Duration duration() { Duration d; d.sec = i32(); d.nsec = i32(); return d; }
+  // exactly n bytes, no length prefix -- a fixed-size uint8[N] field
+  std::vector<uint8_t> raw(size_t n) {
+    need(n); std::vector<uint8_t> v(p, p + n); p += n; return v;
   }
 };
 

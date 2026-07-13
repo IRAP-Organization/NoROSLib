@@ -227,9 +227,15 @@ struct NavSatStatus {
 struct NavSatFix {
   static constexpr const char* TYPE = "sensor_msgs/NavSatFix";
   static constexpr const char* MD5 = "2d3a8cd499b9b4a0249fb98fd05cfa48";
+  // NOTE: the COVARIANCE_TYPE_* constants are part of the real .msg and therefore
+  // part of the md5 -- omitting them here would make a definition-derived md5 come
+  // out as 03617c52... instead of the correct 2d3a8cd4... below.
   static constexpr const char* DEFINITION =
       "std_msgs/Header header\nsensor_msgs/NavSatStatus status\nfloat64 latitude\nfloat64 longitude\n"
-      "float64 altitude\nfloat64[9] position_covariance\nuint8 position_covariance_type\n";
+      "float64 altitude\nfloat64[9] position_covariance\n"
+      "uint8 COVARIANCE_TYPE_UNKNOWN=0\nuint8 COVARIANCE_TYPE_APPROXIMATED=1\n"
+      "uint8 COVARIANCE_TYPE_DIAGONAL_KNOWN=2\nuint8 COVARIANCE_TYPE_KNOWN=3\n"
+      "uint8 position_covariance_type\n";
   std_msgs::Header header;
   NavSatStatus status;
   double latitude = 0, longitude = 0, altitude = 0;

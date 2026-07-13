@@ -65,6 +65,13 @@ def parse_msg_text(text):
     """Parse `.msg` text into a list of Field (constants and fields, in order)."""
     fields = []
     for raw in text.splitlines():
+        # A string constant takes the rest of the line VERBATIM -- '#' does not
+        # start a comment there (the ROS rule), so match it before stripping
+        # comments. The value itself is stripped, as genmsg does.
+        c = _string_constant(raw)
+        if c is not None:
+            fields.append(c)
+            continue
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
@@ -82,6 +89,18 @@ def parse_msg_text(text):
         base, is_array, alen = _split_array(type_tok)
         fields.append(Field(base, name, is_array, alen))
     return fields
+
+
+def _string_constant(raw):
+    """A `string NAME=...` line, or None. The value runs to end-of-line."""
+    stripped = raw.strip()
+    if not stripped.startswith("string ") or "=" not in stripped:
+        return None
+    decl, value = stripped.split("=", 1)
+    parts = decl.split()
+    if len(parts) != 2 or parts[0] != "string":
+        return None                       # e.g. "string data" (a field, no '=')
+    return Field("string", parts[1], is_constant=True, const_value=value.strip())
 
 
 def _is_constant_type(type_tok):

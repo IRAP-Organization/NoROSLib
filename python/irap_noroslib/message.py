@@ -18,7 +18,7 @@ Define your own type in one call::
 Types may nest other registered types by name (e.g. a field
 ``geometry_msgs/Point position``) -- register the dependency first.
 """
-from ._msgspec import MsgSpec, _resolve_type
+from ._msgspec import MsgSpec, _PRIMITIVE, _resolve_type
 
 _SEP = "=" * 80
 
@@ -29,8 +29,21 @@ class _Registry:
     def __init__(self):
         self._specs = {}
         self._classes = {}
+        # Optional callback(full_type) -> str, installed by irap_noroslib.msgfile, to
+        # turn "unknown type" into "load this .msg file too".
+        self.missing_hint = None
 
     def register(self, full_type, text):
+        if full_type in self._specs:
+            # Idempotent: the same text is a no-op, so loading a file twice (or a
+            # type reached from two dependents) keeps ONE class object. Re-defining
+            # a type with different text is refused -- publishers already hold the
+            # old spec, and dependents have cached its md5.
+            if self._specs[full_type].text == text.strip("\n"):
+                return self._classes[full_type]
+            raise ValueError(
+                "message type %r is already registered with different text; "
+                "refusing to redefine it" % full_type)
         spec = MsgSpec(full_type, text, self)
         self._specs[full_type] = spec
         cls = _make_class(full_type, spec)
@@ -39,6 +52,8 @@ class _Registry:
 
     def get_spec(self, full_type):
         if full_type not in self._specs:
+            if self.missing_hint is not None:
+                raise KeyError(self.missing_hint(full_type))
             raise KeyError("unknown message type %r (register it first)" % full_type)
         return self._specs[full_type]
 
@@ -49,6 +64,7 @@ class _Registry:
         return full_type in self._specs
 
     def new_instance(self, full_type):
+        self.get_spec(full_type)              # raises, with a helpful hint
         return self._classes[full_type]()
 
     def full_definition(self, full_type):
@@ -68,7 +84,11 @@ class _Registry:
             if spec is None:
                 return
             for f in spec.fields:
-                if f.is_constant or f.is_builtin:
+                # Test _PRIMITIVE, not is_builtin: is_builtin also covers a bare
+                # `Header`, and skipping that would leave the MSG: std_msgs/Header
+                # block out of the definition -- which is exactly what real .msg
+                # files write, and what `rostopic echo`/`rosbag` need to see.
+                if f.is_constant or f.base_type in _PRIMITIVE:
                     continue
                 dep = _resolve_type(f.base_type, spec.pkg)
                 if dep not in seen:

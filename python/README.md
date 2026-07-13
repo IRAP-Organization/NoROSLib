@@ -210,6 +210,63 @@ Reading = define_message("my_pkg/Reading", """
 
 See `examples/custom_msg.py` and `examples/stamped_pub.py` / `stamped_sub.py`.
 
+### Loading a `.msg` / `.srv` / `.action` **file**
+
+Already have the file? Copy it off the robot and give irap_noroslib its **full path** —
+no catkin package, no ROS install, nothing else:
+
+```python
+import irap_noroslib
+from irap_noroslib import load_msg_file
+
+CustomData = load_msg_file("/home/me/msgs/CustomData.msg", "my_robot_msgs")
+
+pub = irap_noroslib.Publisher("/data", CustomData)
+pub.publish(CustomData(id=7, label="hi"))
+```
+
+The md5sum and the wire codec are derived from the file, so the type is exactly
+what real ROS computes — `rosmsg md5` agrees, and real ROS nodes accept it.
+
+**One file, one call.** Several custom messages? Load each by its own path:
+
+```python
+Reading = load_msg_file("/home/me/msgs/Reading.msg",      "my_robot_msgs")
+Custom  = load_msg_file("/home/me/msgs/CustomData.msg",   "my_robot_msgs")
+Nested  = load_msg_file("/home/me/msgs/StressNested.msg", "my_robot_msgs")
+```
+
+Order doesn't matter — a type that nests another (`Reading[] readings`) resolves it
+on first use. Forget one and the error names the file to add.
+
+The **package name** (`my_robot_msgs`) is the first half of the ROS type name
+`my_robot_msgs/CustomData`. ROS identifies types by that full name, so pass the
+package the message came from. If the file still sits in a catkin layout
+(`<pkg>/msg/<Type>.msg`) it's inferred and you can omit it.
+
+Services and actions work the same way — `load_action_file` registers all 7 ROS
+action message types for you:
+
+```python
+from irap_noroslib import load_srv_file, load_action_file
+
+Srv = load_srv_file("/home/me/msgs/StressSrv.srv",     "my_robot_msgs")   # req '---' resp
+Act = load_action_file("/home/me/msgs/StressAct.action", "my_robot_msgs") # goal/result/feedback
+```
+
+| Function | Loads |
+|---|---|
+| `load_msg_file(path, pkg)` | one `.msg` → a message class |
+| `load_msg_files([paths], pkg)` | several `.msg` files at once |
+| `load_srv_file(path, pkg)` | one `.srv` (split on `---`) → a service class |
+| `load_action_file(path, pkg)` | one `.action` → an action spec + all 7 action types |
+| `loaded_files()` | every type loaded from a file → the path it came from |
+
+Verified against real ROS: a custom package built with `catkin_make`, then loaded
+from its bare files — all 11 md5s (3 messages, 1 service, 7 action types) match
+`rosmsg md5` / `rossrv md5` exactly, and the types round-trip both ways with
+genuine rospy nodes over topics, a service and an action.
+
 ## Services
 
 ```python

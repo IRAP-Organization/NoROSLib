@@ -55,11 +55,13 @@
   #endif
 #else
   #include <arpa/inet.h>
+  #include <dirent.h>
   #include <fcntl.h>
   #include <netdb.h>
   #include <netinet/in.h>
   #include <netinet/tcp.h>
   #include <sys/socket.h>
+  #include <sys/stat.h>
   #include <sys/time.h>
   #include <time.h>
   #include <unistd.h>
@@ -68,6 +70,11 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace irap_noroslib {
 
@@ -193,6 +200,103 @@ inline void wall_time(int64_t* sec, int64_t* nsec) {
 #endif
 }
 
+// -- filesystem (used by the runtime .msg/.srv/.action file loader) ----------
+//
+// Deliberately NOT <filesystem>: that needs -lstdc++fs on GCC 8 / -lc++fs on
+// Clang 7-8 (i.e. Ubuntu 18.04 / ROS Melodic), which would break irap_noroslib's
+// promise of "one header, -std=c++17 -pthread". dirent/FindFirstFile is enough.
+// These live in platform.hpp because it is the one file the amalgamator emits
+// verbatim -- elsewhere the conditional <dirent.h> would get hoisted out of its
+// #if and break the Windows build.
+
+inline bool fs_is_dir(const std::string& path) {
+#if defined(_WIN32)
+  DWORD a = GetFileAttributesA(path.c_str());
+  return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  return ::stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+inline bool fs_is_file(const std::string& path) {
+#if defined(_WIN32)
+  DWORD a = GetFileAttributesA(path.c_str());
+  return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  return ::stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
+
+// Entry names in `dir` (no "." / ".."), unsorted. Empty if dir is unreadable.
+inline std::vector<std::string> fs_list_dir(const std::string& dir) {
+  std::vector<std::string> out;
+#if defined(_WIN32)
+  WIN32_FIND_DATAA fd;
+  HANDLE h = FindFirstFileA((dir + "\\*").c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE) return out;
+  do {
+    std::string n = fd.cFileName;
+    if (n != "." && n != "..") out.push_back(n);
+  } while (FindNextFileA(h, &fd));
+  FindClose(h);
+#else
+  DIR* d = ::opendir(dir.c_str());
+  if (!d) return out;
+  while (struct dirent* e = ::readdir(d)) {
+    std::string n = e->d_name;
+    if (n != "." && n != "..") out.push_back(n);
+  }
+  ::closedir(d);
+#endif
+  return out;
+}
+
+inline bool fs_read_file(const std::string& path, std::string* out) {
+  std::ifstream f(path.c_str(), std::ios::binary);
+  if (!f) return false;
+  std::ostringstream ss;
+  ss << f.rdbuf();
+  *out = ss.str();
+  return true;
+}
+
+inline std::string fs_home() {
+  const char* h = std::getenv("HOME");
+  if (h && *h) return h;
+  const char* u = std::getenv("USERPROFILE");     // Windows
+  return u ? u : "";
+}
+
+// Expand a leading "~" to the home directory.
+inline std::string fs_expand_user(const std::string& path) {
+  if (path.empty() || path[0] != '~') return path;
+  std::string home = fs_home();
+  if (home.empty()) return path;
+  if (path.size() == 1) return home;
+  if (path[1] == '/' || path[1] == '\\') return home + path.substr(1);
+  return path;
+}
+
+inline std::string fs_join(const std::string& a, const std::string& b) {
+  if (a.empty()) return b;
+  char last = a[a.size() - 1];
+  if (last == '/' || last == '\\') return a + b;
+  return a + "/" + b;
+}
+
+// Everything before the final separator ("" if there is none).
+inline std::string fs_dirname(const std::string& path) {
+  size_t i = path.find_last_of("/\\");
+  return i == std::string::npos ? std::string() : path.substr(0, i);
+}
+
+inline std::string fs_basename(const std::string& path) {
+  size_t i = path.find_last_of("/\\");
+  return i == std::string::npos ? path : path.substr(i + 1);
+}
+
 }  // namespace irap_noroslib
 // ---- portable standard-library includes ----
 #include <algorithm>
@@ -237,12 +341,24 @@ inline void wall_time(int64_t* sec, int64_t* nsec) {
 
 namespace irap_noroslib {
 
+// ROS `time` and `duration` as values. (The compile-time message structs flatten
+// these into their own uint32 pairs; these are what the runtime .msg loader uses.)
+struct Time {
+  uint32_t sec = 0, nsec = 0;
+  bool operator==(const Time& o) const { return sec == o.sec && nsec == o.nsec; }
+};
+struct Duration {
+  int32_t sec = 0, nsec = 0;
+  bool operator==(const Duration& o) const { return sec == o.sec && nsec == o.nsec; }
+};
+
 // little-endian write buffer
 struct Writer {
   std::vector<uint8_t> b;
   void u8(uint8_t v) { b.push_back(v); }
   void i8(int8_t v) { b.push_back(static_cast<uint8_t>(v)); }
   void u16(uint16_t v) { b.push_back(v); b.push_back(v >> 8); }
+  void i16(int16_t v) { u16(static_cast<uint16_t>(v)); }
   void i32(int32_t v) { u32(static_cast<uint32_t>(v)); }
   void u32(uint32_t v) {
     b.push_back(v); b.push_back(v >> 8); b.push_back(v >> 16); b.push_back(v >> 24);
@@ -260,6 +376,10 @@ struct Writer {
     u32(static_cast<uint32_t>(v.size()));
     b.insert(b.end(), v.begin(), v.end());
   }
+  void time(const Time& t) { u32(t.sec); u32(t.nsec); }
+  void duration(const Duration& d) { i32(d.sec); i32(d.nsec); }
+  // raw bytes with NO length prefix -- a fixed-size uint8[N] field
+  void raw(const std::vector<uint8_t>& v) { b.insert(b.end(), v.begin(), v.end()); }
 };
 
 // little-endian read cursor
@@ -271,6 +391,7 @@ struct Reader {
   uint8_t u8() { need(1); return *p++; }
   int8_t i8() { return static_cast<int8_t>(u8()); }
   uint16_t u16() { need(2); uint16_t v = p[0] | (p[1] << 8); p += 2; return v; }
+  int16_t i16() { return static_cast<int16_t>(u16()); }
   int32_t i32() { return static_cast<int32_t>(u32()); }
   uint32_t u32() {
     need(4);
@@ -293,6 +414,12 @@ struct Reader {
   std::vector<uint8_t> bytes() {
     uint32_t n = u32(); need(n);
     std::vector<uint8_t> v(p, p + n); p += n; return v;
+  }
+  Time time() { Time t; t.sec = u32(); t.nsec = u32(); return t; }
+  Duration duration() { Duration d; d.sec = i32(); d.nsec = i32(); return d; }
+  // exactly n bytes, no length prefix -- a fixed-size uint8[N] field
+  std::vector<uint8_t> raw(size_t n) {
+    need(n); std::vector<uint8_t> v(p, p + n); p += n; return v;
   }
 };
 
@@ -939,9 +1066,15 @@ struct NavSatStatus {
 struct NavSatFix {
   static constexpr const char* TYPE = "sensor_msgs/NavSatFix";
   static constexpr const char* MD5 = "2d3a8cd499b9b4a0249fb98fd05cfa48";
+  // NOTE: the COVARIANCE_TYPE_* constants are part of the real .msg and therefore
+  // part of the md5 -- omitting them here would make a definition-derived md5 come
+  // out as 03617c52... instead of the correct 2d3a8cd4... below.
   static constexpr const char* DEFINITION =
       "std_msgs/Header header\nsensor_msgs/NavSatStatus status\nfloat64 latitude\nfloat64 longitude\n"
-      "float64 altitude\nfloat64[9] position_covariance\nuint8 position_covariance_type\n";
+      "float64 altitude\nfloat64[9] position_covariance\n"
+      "uint8 COVARIANCE_TYPE_UNKNOWN=0\nuint8 COVARIANCE_TYPE_APPROXIMATED=1\n"
+      "uint8 COVARIANCE_TYPE_DIAGONAL_KNOWN=2\nuint8 COVARIANCE_TYPE_KNOWN=3\n"
+      "uint8 position_covariance_type\n";
   std_msgs::Header header;
   NavSatStatus status;
   double latitude = 0, longitude = 0, altitude = 0;

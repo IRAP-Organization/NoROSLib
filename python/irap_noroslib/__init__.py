@@ -28,6 +28,9 @@ from .node import (
 from .message import define_message, get_message_class, Message
 from .srv import define_service, ServiceException
 from .actionlib import define_action, SimpleActionClient, SimpleActionServer
+from .msgfile import (
+    load_msg_file, load_msg_files, load_srv_file, load_action_file, loaded_files,
+)
 from . import msg
 from . import srv
 from . import actionlib
@@ -42,6 +45,8 @@ __all__ = [
     "define_message", "get_message_class", "Message", "msg",
     "define_service", "ServiceException", "srv",
     "define_action", "SimpleActionClient", "SimpleActionServer", "actionlib",
+    "load_msg_file", "load_msg_files", "load_srv_file", "load_action_file",
+    "loaded_files",
 ]
 
 __version__ = "0.1.0"
