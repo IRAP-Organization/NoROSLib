@@ -22,6 +22,24 @@ you install nothing to talk to ROS. (The `webcam_pub.py` / `webcam_sub.py` / `ro
 demos are the only examples that want extra packages — OpenCV, and for the
 viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 
+## Command-line tools
+
+`pip install irap_noroslib` puts two commands on your PATH:
+
+```bash
+nr_roscore  --bind 127.0.0.1 --port 11311     # BE the ROS master
+nr_rostopic --master 127.0.0.1 --port 11311 echo /chatter
+```
+
+| | |
+|---|---|
+| `nr_roscore` | a standalone ROS master + parameter server. `--bind` = interface to listen on, `--port` = port, `--host` = what it advertises to nodes (defaults to `--bind` when that is a concrete IP). |
+| `nr_rostopic` | `rostopic`, with no ROS: `list` / `type` / `info` / `find` / `echo` / `hz` / `bw` / `pub`. `--master` takes a host, IP, `host:port` or full URI; `--port` sets the port. |
+
+`nr_rostopic echo` decodes **any** topic — including a custom type you have no
+`.msg` file for, which real `rostopic echo` refuses to show. Both also run as
+`python3 -m irap_noroslib.roscore` / `python3 -m irap_noroslib.rostopic`.
+
 ## Hello, topics
 
 **Publisher** (`talker.py`):

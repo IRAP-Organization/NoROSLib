@@ -8,13 +8,21 @@ notifies subscribers via `publisherUpdate` when a topic's publisher set changes.
 
 Run it directly:
 
-    python3 -m irap_noroslib.roscore                 # binds :11311, advertises this host
-    python3 -m irap_noroslib.roscore --port 11322
-    ROS_MASTER_URI=http://myhost:11311 ROS_HOSTNAME=myhost python3 -m irap_noroslib.roscore
+    nr_roscore                                  # binds :11311, advertises this host
+    nr_roscore --bind 127.0.0.1 --port 11311     # loopback only
+    nr_roscore --bind 0.0.0.0 --port 11322       # every interface, custom port
+    nr_roscore --host 192.168.1.10               # advertise a specific IP to nodes
+
+(`nr_roscore` is on your PATH after `pip install irap_noroslib`; the same thing runs
+as `python3 -m irap_noroslib.roscore`.)
+
+--bind is the interface to listen on; --host is what the master tells nodes to
+connect back to. Give only --bind with a concrete IP and it is used for both.
 
 Then point nodes at it with the matching ROS_MASTER_URI. Uses only the standard
 library -- no ROS, no irap_noroslib client code.
 """
+import errno
 import os
 import sys
 import socket
@@ -378,8 +386,27 @@ def serve(host=None, port=None, bind="0.0.0.0", quiet=False, rosout=True):
     port = port or _port_from_env()
     master_uri = "http://%s:%d/" % (host, port)
 
-    server = _ThreadingServer((bind, port), requestHandler=_Handler,
-                              allow_none=True, logRequests=False)
+    try:
+        server = _ThreadingServer((bind, port), requestHandler=_Handler,
+                                  allow_none=True, logRequests=False)
+    except OSError as e:
+        # "address already in use" is the ordinary case (a roscore is already
+        # running). Say so plainly instead of dumping a traceback.
+        if getattr(e, "errno", None) == errno.EADDRINUSE:
+            print("[nr_roscore] cannot bind %s:%d -- something is already listening "
+                  "there.\n"
+                  "             Another roscore/nr_roscore is probably running. Use a "
+                  "free port:\n"
+                  "                 nr_roscore --bind %s --port %d"
+                  % (bind, port, bind, port + 1), file=sys.stderr)
+            raise SystemExit(1)
+        if getattr(e, "errno", None) == errno.EADDRNOTAVAIL:
+            print("[nr_roscore] cannot bind %s -- this machine has no such address.\n"
+                  "             Use --bind 0.0.0.0 (all interfaces) or one of its own IPs."
+                  % bind, file=sys.stderr)
+            raise SystemExit(1)
+        raise
+
     master = RosMaster(master_uri, quiet=quiet)
     server.register_instance(master, allow_dotted_names=False)
     server.register_introspection_functions()
@@ -413,11 +440,20 @@ def main(argv=None):
                     help="port to bind/advertise (default: from $ROS_MASTER_URI or 11311)")
     ap.add_argument("--host", default=None,
                     help="hostname/IP to advertise (default: $ROS_HOSTNAME/$ROS_IP or system hostname)")
-    ap.add_argument("--bind", default="0.0.0.0", help="interface to bind (default: 0.0.0.0)")
+    ap.add_argument("--bind", default="0.0.0.0",
+                    help="interface/IP to bind (default: 0.0.0.0 = all)")
     ap.add_argument("-q", "--quiet", action="store_true", help="don't log registrations")
     ap.add_argument("--no-rosout", action="store_true", help="don't start the /rosout aggregator")
     args = ap.parse_args(argv)
-    serve(host=args.host, port=args.port, bind=args.bind, quiet=args.quiet,
+
+    # `nr_roscore --bind 127.0.0.1` should advertise 127.0.0.1, not the system
+    # hostname -- a master reachable only on loopback must not tell nodes to use a
+    # name that resolves elsewhere. An explicit --host still wins.
+    host = args.host
+    if host is None and args.bind not in ("0.0.0.0", "::", ""):
+        host = args.bind
+
+    serve(host=host, port=args.port, bind=args.bind, quiet=args.quiet,
           rosout=not args.no_rosout)
 
 

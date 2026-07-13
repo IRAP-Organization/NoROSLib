@@ -556,6 +556,9 @@ The same subcommands and the same arguments as the real tool, so your muscle mem
 works. Available in **both languages** (`python3 -m irap_noroslib.rostopic`, or
 `nr_rostopic` once pip-installed; `./build/nr_rostopic` in C++).
 
+After `pip install irap_noroslib`, **`nr_rostopic` and `nr_roscore` are on your PATH**
+(they are console scripts; `python3 -m irap_noroslib.rostopic` runs the same code).
+
 ```bash
 nr_rostopic list [-v]                                # all topics (+ types, counts)
 nr_rostopic type   /chatter                          # std_msgs/String
@@ -566,6 +569,19 @@ nr_rostopic hz     /chatter                          # publish rate
 nr_rostopic bw     /chatter                          # bandwidth
 nr_rostopic pub [-r HZ | -1] /chatter std_msgs/String "data: hi"
 ```
+
+**Pointing it at a master.** `--master` takes a host, an IP, a `host:port`, or a full
+URI, and `--port` sets the port — so these all mean the same thing:
+
+```bash
+nr_rostopic --master 127.0.0.1 --port 11311 echo /chatter
+nr_rostopic --master 127.0.0.1:11311        echo /chatter
+nr_rostopic --master http://127.0.0.1:11311 echo /chatter
+nr_rostopic --master 127.0.0.1              echo /chatter   # port defaults to 11311
+```
+
+With nothing given it uses `$ROS_MASTER_URI`, else `http://localhost:11311`. The C++
+`nr_rostopic` takes the same flags.
 
 ### `echo` does something real `rostopic` cannot
 
@@ -608,13 +624,23 @@ with. It implements the Master API (register/unregister publisher/subscriber/
 service, `lookupService`/`lookupNode`, `getSystemState`, `getPublishedTopics`, …),
 sends `publisherUpdate` to subscribers, and serves parameters.
 
+After `pip install irap_noroslib`, **`nr_roscore` is on your PATH**:
+
 ```bash
-# Python
-python3 python/examples/nr_roscore.py --port 11311
+nr_roscore                                  # bind every interface, port 11311
+nr_roscore --bind 127.0.0.1 --port 11311    # loopback only
+nr_roscore --bind 0.0.0.0 --port 11322      # every interface, custom port
+nr_roscore --host 192.168.1.10              # advertise this IP to nodes
 
 # C++ (built with the examples)
 ./cpp/build/nr_roscore --port 11311
 ```
+
+`--bind` is the interface it **listens on**; `--host` is what it **tells nodes to
+connect back to**. Give only `--bind` with a concrete IP and it is used for both —
+so `nr_roscore --bind 127.0.0.1 --port 11311` advertises `http://127.0.0.1:11311/`,
+not the system hostname (a loopback-only master must not hand nodes a name that
+resolves elsewhere).
 
 Configuration (same knobs as a real roscore):
 

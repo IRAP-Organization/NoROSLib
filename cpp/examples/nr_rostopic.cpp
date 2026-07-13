@@ -392,8 +392,25 @@ static void usage() {
       "  nr_rostopic hz     TOPIC\n"
       "  nr_rostopic bw     TOPIC\n"
       "  nr_rostopic pub [-r HZ | -1] TOPIC TYPE \"data\"\n\n"
-      "  --master URI   the ROS master (default: $ROS_MASTER_URI)\n\n"
+      "  --master HOST  master host, IP, host:port or full URI\n"
+      "  --port N       master port (default: 11311)\n\n"
       "`echo` decodes ANY topic -- even a custom type you have no .msg file for.\n");
+}
+
+// Accepts a full URI, a host:port, or a bare host/IP -- so all of these agree:
+//   --master http://127.0.0.1:11311   --master 127.0.0.1:11311
+//   --master 127.0.0.1 --port 11311   --master 127.0.0.1   (port defaults to 11311)
+static std::string resolve_master(std::string uri, int port) {
+  if (uri.find("://") == std::string::npos) uri = "http://" + uri;
+  size_t sep = uri.find("://");
+  std::string scheme = uri.substr(0, sep);
+  std::string rest = uri.substr(sep + 3);
+  while (!rest.empty() && rest.back() == '/') rest.pop_back();
+  size_t colon = rest.find(':');
+  std::string host = colon == std::string::npos ? rest : rest.substr(0, colon);
+  std::string p = colon == std::string::npos ? "11311" : rest.substr(colon + 1);
+  if (port > 0) p = std::to_string(port);
+  return scheme + "://" + host + ":" + p;
 }
 
 int main(int argc, char** argv) {
@@ -401,12 +418,15 @@ int main(int argc, char** argv) {
   const char* env_host = std::getenv("ROS_HOSTNAME");
   if (env_master) g_master = env_master;
 
+  int port = 0;
   std::vector<std::string> a;
   for (int i = 1; i < argc; ++i) {
     std::string s = argv[i];
     if (s == "--master" && i + 1 < argc) { g_master = argv[++i]; continue; }
+    if (s == "--port" && i + 1 < argc) { port = std::atoi(argv[++i]); continue; }
     a.push_back(s);
   }
+  g_master = resolve_master(g_master, port);
   if (a.empty()) { usage(); return 0; }
 
   set_master_uri(g_master);

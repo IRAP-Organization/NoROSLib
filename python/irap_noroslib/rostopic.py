@@ -75,6 +75,32 @@ def _scalar(v, noarr=False):
 
 
 # ------------------------------------------------------------ master glue ----
+def resolve_master(master=None, port=None):
+    """Build the master URI from whatever the user gave us.
+
+    `master` may be a full URI, a host:port, or just a host/IP -- so all of these
+    mean the same thing:
+
+        --master http://127.0.0.1:11311
+        --master 127.0.0.1:11311
+        --master 127.0.0.1 --port 11311
+        --master 127.0.0.1                  (port defaults to 11311)
+
+    With nothing given, $ROS_MASTER_URI is used, then http://localhost:11311.
+    """
+    uri = master or os.environ.get("ROS_MASTER_URI") or "http://localhost:11311"
+    if "://" not in uri:
+        uri = "http://" + uri
+    scheme, _, rest = uri.partition("://")
+    rest = rest.rstrip("/")
+    host, colon, uri_port = rest.partition(":")
+    if port:                       # --port always wins
+        uri_port = str(port)
+    elif not colon:
+        uri_port = "11311"
+    return "%s://%s:%s" % (scheme, host, uri_port)
+
+
 _inited = []
 
 
@@ -388,7 +414,11 @@ def main(argv=None):
         prog="nr_rostopic",
         description="rostopic, with no ROS installed. `echo` decodes any topic -- "
                     "even a custom type you have no .msg file for.")
-    p.add_argument("--master", help="master URI (default: $ROS_MASTER_URI)")
+    p.add_argument("--master", metavar="HOST|URI",
+                   help="master host, IP, host:port or full URI "
+                        "(default: $ROS_MASTER_URI, else localhost)")
+    p.add_argument("--port", type=int,
+                   help="master port (default: 11311, or the port in --master)")
     p.add_argument("--host", help="our hostname (default: $ROS_HOSTNAME / $ROS_IP)")
     sub = p.add_subparsers(dest="cmd")
 
@@ -437,8 +467,7 @@ def main(argv=None):
 
     # a CLI prints its data, not the library's chatter (warnings still show)
     irap_noroslib.set_log_level("warn")
-    irap_noroslib.set_master_uri(
-        args.master or os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    irap_noroslib.set_master_uri(resolve_master(args.master, args.port))
     irap_noroslib.set_hostname(
         args.host or os.environ.get("ROS_HOSTNAME")
         or os.environ.get("ROS_IP") or "localhost")
