@@ -9,6 +9,7 @@
 //   rostopic pub -r 5 /disc std_msgs/String "data: real ros here"
 //   ./md5_discovery
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 #include <cstdlib>
 
 int main() {

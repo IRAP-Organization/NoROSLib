@@ -178,6 +178,7 @@ type names are untouched, because messages keep their real ROS namespaces:
 
 ```cpp
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 int main() {
   irap_noroslib::init_node("talker");
   irap_noroslib::Publisher<std_msgs::String> pub("/chatter");

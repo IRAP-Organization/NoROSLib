@@ -2,7 +2,7 @@
 // stamped data). Compose the built-in std_msgs::Header via its write()/read().
 #pragma once
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/Header.h"
 
 struct SensorReading {
   static constexpr const char* TYPE = "irap_noroslib_demo/SensorReading";

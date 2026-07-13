@@ -1,6 +1,7 @@
 // irap_noroslib talker — publish std_msgs/String at 10 Hz to a real roscore.
 //   rostopic echo /chatter        # watch it from real ROS
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 #include <cstdlib>
 
 int main() {

@@ -12,7 +12,7 @@ Then: python3 md5_discovery.py
 """
 import os
 import irap_noroslib
-from irap_noroslib import msg  # registers std_msgs/String so post-discovery decode works
+from irap_noroslib.std_msgs.msg import String  # registers std_msgs/String so post-discovery decode works
 
 
 def callback(m):

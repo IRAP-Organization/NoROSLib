@@ -6,6 +6,7 @@
 //
 // Only the transport hint changes vs a normal Subscriber (3rd arg "udpros").
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 #include <cstdlib>
 
 int main() {

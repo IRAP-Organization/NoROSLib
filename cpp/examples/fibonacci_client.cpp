@@ -1,7 +1,6 @@
 // irap_noroslib action CLIENT — sends a Fibonacci goal, prints feedback + result.
 // Works against the irap_noroslib server OR real ROS: rosrun actionlib_tutorials fibonacci_server
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
 #include "fibonacci_action.hpp"
 #include <cstdio>
 #include <cstdlib>

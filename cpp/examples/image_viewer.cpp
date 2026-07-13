@@ -14,6 +14,8 @@
 //   g++ -std=c++17 image_viewer.cpp irap_noroslib_impl.cpp -o image_viewer \
 //       -pthread $(pkg-config --cflags --libs opencv4)
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/sensor_msgs/Image.h"
+#include "irap_noroslib/sensor_msgs/CompressedImage.h"
 #include <opencv2/opencv.hpp>
 #include <atomic>
 #include <mutex>

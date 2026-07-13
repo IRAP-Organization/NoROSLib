@@ -13,7 +13,7 @@ import os, sys
 import cv2
 
 import irap_noroslib
-from irap_noroslib import msg
+from irap_noroslib.sensor_msgs.msg import Image, CompressedImage
 
 
 def main():
@@ -29,8 +29,8 @@ def main():
     irap_noroslib.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
     irap_noroslib.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
     irap_noroslib.init_node("irap_noroslib_webcam")
-    raw_pub = irap_noroslib.Publisher("/irap_noroslib/image_raw", msg.Image)
-    comp_pub = irap_noroslib.Publisher("/irap_noroslib/image_raw/compressed", msg.CompressedImage)
+    raw_pub = irap_noroslib.Publisher("/irap_noroslib/image_raw", Image)
+    comp_pub = irap_noroslib.Publisher("/irap_noroslib/image_raw/compressed", CompressedImage)
     rate = irap_noroslib.Rate(30)
     seq = 0
     while not irap_noroslib.is_shutdown():
@@ -43,7 +43,7 @@ def main():
         stamp = irap_noroslib.now()
 
         # --- raw Image (bgr8) ---
-        raw = msg.Image()
+        raw = Image()
         raw.header.seq = seq
         raw.header.stamp = stamp
         raw.header.frame_id = "camera"
@@ -57,7 +57,7 @@ def main():
         # --- CompressedImage (jpeg) ---
         okj, enc = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         if okj:
-            comp = msg.CompressedImage()
+            comp = CompressedImage()
             comp.header.seq = seq
             comp.header.stamp = stamp
             comp.header.frame_id = "camera"

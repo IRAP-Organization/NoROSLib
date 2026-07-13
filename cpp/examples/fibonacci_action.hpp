@@ -3,8 +3,8 @@
 // md5sums come from `rosmsg md5 <type>`. This is actionlib_tutorials/Fibonacci.
 #pragma once
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/Header.h"
+#include "irap_noroslib/actionlib_msgs/GoalID.h"
 
 namespace fib {
 using irap_noroslib::Reader;

@@ -55,6 +55,7 @@ to build the bundled examples. Full details in [`DEPENDENCIES.md`](DEPENDENCIES.
 
 ```cpp
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"     // the roscpp path, prefixed
 int main() {
   irap_noroslib::init_node("talker");
   irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
@@ -71,6 +72,7 @@ int main() {
 
 ```cpp
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 int main() {
   irap_noroslib::init_node("listener");
   irap_noroslib::Subscriber<std_msgs::String> sub("/chatter",
@@ -78,6 +80,11 @@ int main() {
   irap_noroslib::spin();
 }
 ```
+
+That's a roscpp node with `ros::` swapped for `irap_noroslib::` — the message type
+(`std_msgs::String`) and its include path are the ones you already know, just
+prefixed. `#include "irap_noroslib.hpp"` alone would also be enough; the per-type
+header is there so ported code reads unchanged.
 
 Point at a master (defaults to `http://127.0.0.1:11311`) via `$ROS_MASTER_URI` /
 `$ROS_HOSTNAME`, or from code: `irap_noroslib::set_master_uri(...)` / `set_hostname(...)`

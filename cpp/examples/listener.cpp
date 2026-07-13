@@ -1,6 +1,7 @@
 // irap_noroslib listener — subscribe to std_msgs/String from a real roscore.
 //   rostopic pub -r 10 /chatter std_msgs/String "data: hi"
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/std_msgs/String.h"
 #include <cstdlib>
 
 int main() {

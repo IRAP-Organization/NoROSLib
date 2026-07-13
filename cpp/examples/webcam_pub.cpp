@@ -14,6 +14,8 @@
 //   g++ -std=c++17 webcam_pub.cpp irap_noroslib_impl.cpp -o webcam_pub \
 //       -pthread $(pkg-config --cflags --libs opencv4)
 #include "irap_noroslib.hpp"
+#include "irap_noroslib/sensor_msgs/Image.h"
+#include "irap_noroslib/sensor_msgs/CompressedImage.h"
 #include <opencv2/opencv.hpp>
 #include <cstdlib>
 

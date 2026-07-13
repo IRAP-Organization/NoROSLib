@@ -15,10 +15,6 @@
 // NOTE: parameters are scalar/array only (the Python nr_roscore does full dict
 // trees). Enough for topics, services, actions and typical scalar params.
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"   // irap_noroslib client, used to run the /rosout aggregator
 
 #include <cctype>
 #include <cstdio>

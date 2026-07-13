@@ -1,7 +1,6 @@
 // irap_noroslib action SERVER — computes Fibonacci, publishing feedback then a result.
 // Drive it with real ROS: rosrun actionlib_tutorials fibonacci_client
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
 #include "fibonacci_action.hpp"
 #include <thread>
 #include <cstdlib>

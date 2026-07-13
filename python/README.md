@@ -28,13 +28,13 @@ viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 
 ```python
 import irap_noroslib
-from irap_noroslib import msg
+from irap_noroslib.std_msgs.msg import String
 
 irap_noroslib.init_node("talker")
-pub = irap_noroslib.Publisher("/chatter", msg.String)
+pub = irap_noroslib.Publisher("/chatter", String)
 rate = irap_noroslib.Rate(10)
 while not irap_noroslib.is_shutdown():
-    pub.publish(msg.String(data="hello world"))
+    pub.publish(String(data="hello world"))
     rate.sleep()
 ```
 
@@ -42,12 +42,15 @@ while not irap_noroslib.is_shutdown():
 
 ```python
 import irap_noroslib
-from irap_noroslib import msg
+from irap_noroslib.std_msgs.msg import String
 
 irap_noroslib.init_node("listener")
-irap_noroslib.Subscriber("/chatter", msg.String, lambda m: irap_noroslib.loginfo("I heard: " + m.data))
+irap_noroslib.Subscriber("/chatter", String, lambda m: irap_noroslib.loginfo("I heard: " + m.data))
 irap_noroslib.spin()
 ```
+
+That's a rospy node with `rospy` swapped for `irap_noroslib` — the message import is
+the path you already know (`from std_msgs.msg import String`), just prefixed.
 
 Point them at a master (defaults to `http://127.0.0.1:11311`):
 

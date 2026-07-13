@@ -4,7 +4,6 @@
 // deserialize(). Get the md5 from `rosmsg md5 <type>` (or let irap_noroslib discover it
 // from the publisher). Here we model geometry_msgs/Pose2D under our own name.
 #include "irap_noroslib.hpp"
-#include "irap_noroslib.hpp"
 #include <cstdlib>
 
 struct Pose2D {
