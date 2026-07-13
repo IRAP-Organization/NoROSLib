@@ -1,4 +1,4 @@
-# noros (C++)
+# NoROSLib (C++) — `#include "irap_noroslib.hpp"`
 
 A roscpp-flavoured ROS client library — **no ROS installed, no bridge, single
 header, links zero ROS libraries.** C++17 + POSIX sockets + pthreads. It speaks the
@@ -8,36 +8,36 @@ legitimate node — **not** rosbridge/roslibpy, and nothing extra runs on the ro
 
 ## Install: copy one file
 
-The entire library is a single header: [`include/noros.hpp`](include/noros.hpp).
+The entire library is a single header: [`include/irap_noroslib.hpp`](include/irap_noroslib.hpp).
 Copy it into your project's include path. That's the whole install.
 
 Because it's header-only (stb-style), the implementation must be compiled in
 **exactly one** translation unit. In one `.cpp` of your project:
 
 ```cpp
-#define NOROS_IMPLEMENTATION
-#include "noros.hpp"
+#define IRAP_NOROSLIB_IMPLEMENTATION
+#include "irap_noroslib.hpp"
 ```
 
-In every **other** file, just `#include "noros.hpp"` (no define). Compile with
+In every **other** file, just `#include "irap_noroslib.hpp"` (no define). Compile with
 C++17 and link the platform's socket/thread libs:
 
 ```bash
 # Linux / macOS / WSL
-g++ -std=c++17 -pthread your_app.cpp noros_impl.cpp -o your_app
+g++ -std=c++17 -pthread your_app.cpp irap_noroslib_impl.cpp -o your_app
 
 # Windows, MinGW
-g++ -std=c++17 your_app.cpp noros_impl.cpp -o your_app.exe -lws2_32
+g++ -std=c++17 your_app.cpp irap_noroslib_impl.cpp -o your_app.exe -lws2_32
 
 # Windows, MSVC (ws2_32 is auto-linked via #pragma comment)
-cl /std:c++17 /EHsc your_app.cpp noros_impl.cpp
+cl /std:c++17 /EHsc your_app.cpp irap_noroslib_impl.cpp
 ```
 
-(where `noros_impl.cpp` is the one file that defines `NOROS_IMPLEMENTATION`.)
+(where `irap_noroslib_impl.cpp` is the one file that defines `IRAP_NOROSLIB_IMPLEMENTATION`.)
 
 ### Platforms
 
-noros ships a Winsock/POSIX compatibility layer, so the **same header builds on
+irap_noroslib ships a Winsock/POSIX compatibility layer, so the **same header builds on
 Linux, macOS, WSL, and native Windows**. On Windows it uses Winsock2 (`WSAStartup`
 is handled for you); everywhere else it uses BSD sockets. The only platform
 difference you touch is the link flag above.
@@ -54,12 +54,12 @@ to build the bundled examples. Full details in [`DEPENDENCIES.md`](DEPENDENCIES.
 **Publisher** (`talker.cpp`):
 
 ```cpp
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 int main() {
-  noros::init_node("talker");
-  noros::Publisher<std_msgs::String> pub("/chatter");
-  noros::Rate rate(10);
-  while (noros::ok()) {
+  irap_noroslib::init_node("talker");
+  irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
+  irap_noroslib::Rate rate(10);
+  while (irap_noroslib::ok()) {
     std_msgs::String m; m.data = "hello world";
     pub.publish(m);
     rate.sleep();
@@ -70,17 +70,17 @@ int main() {
 **Subscriber** (`listener.cpp`):
 
 ```cpp
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 int main() {
-  noros::init_node("listener");
-  noros::Subscriber<std_msgs::String> sub("/chatter",
-      [](const std_msgs::String& m){ noros::loginfo("I heard: " + m.data); });
-  noros::spin();
+  irap_noroslib::init_node("listener");
+  irap_noroslib::Subscriber<std_msgs::String> sub("/chatter",
+      [](const std_msgs::String& m){ irap_noroslib::loginfo("I heard: " + m.data); });
+  irap_noroslib::spin();
 }
 ```
 
 Point at a master (defaults to `http://127.0.0.1:11311`) via `$ROS_MASTER_URI` /
-`$ROS_HOSTNAME`, or from code: `noros::set_master_uri(...)` / `set_hostname(...)`
+`$ROS_HOSTNAME`, or from code: `irap_noroslib::set_master_uri(...)` / `set_hostname(...)`
 before `init_node`.
 
 ## Build the examples
@@ -91,7 +91,7 @@ cmake -S . -B build && cmake --build build -j
 ./build/talker        # ./build/listener, add_two_ints_*, stamped_*, fibonacci_*, ...
 ```
 
-The CMake build compiles the implementation once (`noros_impl.cpp`) and links it
+The CMake build compiles the implementation once (`irap_noroslib_impl.cpp`) and links it
 into each example — demonstrating exactly the integration described above.
 
 ### All examples (`cpp/examples/`)
@@ -112,19 +112,19 @@ into each example — demonstrating exactly the integration described above.
 | `nr_roscore.cpp` | run your own ROS master (roscore) + `/rosout` aggregator |
 
 † `webcam_pub` and `image_viewer` **require OpenCV** (`cv::VideoCapture` /
-`cv::imencode` / `cv::imshow`). **OpenCV is not a dependency of noros** — the core
+`cv::imencode` / `cv::imshow`). **OpenCV is not a dependency of irap_noroslib** — the core
 library links zero third-party packages; only these two optional demos need it.
 The CMake build compiles them **only if OpenCV is found** (otherwise it prints a
 notice and skips them). By hand:
 
 ```bash
-g++ -std=c++17 examples/webcam_pub.cpp noros_impl.cpp -o webcam_pub \
+g++ -std=c++17 examples/webcam_pub.cpp irap_noroslib_impl.cpp -o webcam_pub \
     -pthread $(pkg-config --cflags --libs opencv4)
 ```
 
 These mirror the Python examples one-for-one (same names, same behaviour), so the
-two libraries stay in lock-step. Every example calls `noros::set_master_uri(...)`
-and `noros::set_hostname(...)` **before** `init_node` (falling back to
+two libraries stay in lock-step. Every example calls `irap_noroslib::set_master_uri(...)`
+and `irap_noroslib::set_hostname(...)` **before** `init_node` (falling back to
 `$ROS_MASTER_URI` / `$ROS_HOSTNAME`, else a local roscore).
 
 Run each as `./build/<name>`.
@@ -142,13 +142,13 @@ Built-in catalog (each provides `TYPE`, `MD5`, `DEFINITION` and
 - `trajectory_msgs::` JointTrajectory, JointTrajectoryPoint, MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint
 - `actionlib_msgs::` GoalID, GoalStatus, GoalStatusArray
 
-This is the **same 64-type catalog as the Python `noros.msg`** — the two
+This is the **same 64-type catalog as the Python `irap_noroslib.msg`** — the two
 libraries are in lock-step. Every md5 matches `rosmsg md5`, and all 64 types plus
 a custom message have been round-tripped through a real `roscore` and decoded by
 genuine `rospy` subscribers.
 
-Headers: `noros/{std_msgs,geometry_msgs,sensor_msgs,nav_msgs,diagnostic_msgs,trajectory_msgs,actionlib_msgs}.hpp`
-(all pulled in by `noros.hpp`).
+Headers: `irap_noroslib/{std_msgs,geometry_msgs,sensor_msgs,nav_msgs,diagnostic_msgs,trajectory_msgs,actionlib_msgs}.hpp`
+(all pulled in by `irap_noroslib.hpp`).
 
 ### How to use them
 
@@ -156,7 +156,7 @@ Each type is a plain struct — construct it, set fields, publish. Nested messag
 `std::vector<>` arrays, `std_msgs::Header`, and `time`/`duration` all work:
 
 ```cpp
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 
 // simple scalar wrappers
 std_msgs::Int32   i;  i.data = 7;
@@ -185,17 +185,17 @@ sensor_msgs::Image img;
 img.data = {0x00, 0x01, 0x02};
 
 // publish / subscribe
-noros::Publisher<nav_msgs::Odometry> pub("/odom");
+irap_noroslib::Publisher<nav_msgs::Odometry> pub("/odom");
 pub.publish(o);
-noros::Subscriber<nav_msgs::Odometry> sub("/odom",
-    [](const nav_msgs::Odometry& m){ noros::loginfo(m.child_frame_id); });
+irap_noroslib::Subscriber<nav_msgs::Odometry> sub("/odom",
+    [](const nav_msgs::Odometry& m){ irap_noroslib::loginfo(m.child_frame_id); });
 ```
 
 ### Your own message types
 
 Not in the catalog? Write a small struct with the three static strings
 (`TYPE`, `MD5`, `DEFINITION`) plus `serialize()`/`deserialize()` using
-`noros::Writer` / `noros::Reader`. See `examples/custom_msg.cpp`, and
+`irap_noroslib::Writer` / `irap_noroslib::Reader`. See `examples/custom_msg.cpp`, and
 `examples/sensor_reading.hpp` for one with a `std_msgs::Header`.
 
 ## Services
@@ -204,10 +204,10 @@ A service is a struct with `TYPE` + `MD5` and nested `Request` / `Response`. See
 `examples/add_two_ints.hpp`, or use built-in `std_srvs::{Empty,Trigger,SetBool}`.
 
 ```cpp
-noros::ServiceServer<AddTwoInts> srv("/add_two_ints",
+irap_noroslib::ServiceServer<AddTwoInts> srv("/add_two_ints",
     [](const AddTwoInts::Request& q, AddTwoInts::Response& r){ r.sum = q.a + q.b; return true; });
 
-noros::ServiceClient<AddTwoInts> c("/add_two_ints");
+irap_noroslib::ServiceClient<AddTwoInts> c("/add_two_ints");
 AddTwoInts::Request q; q.a = 3; q.b = 4; AddTwoInts::Response r;
 c.call(q, r);   // r.sum == 7
 ```
@@ -218,7 +218,7 @@ An action is a traits struct exposing Goal/Result/Feedback + the wrapper types �
 see `examples/fibonacci_action.hpp`.
 
 ```cpp
-noros::SimpleActionClient<fib::Fibonacci> c("/fibonacci");
+irap_noroslib::SimpleActionClient<fib::Fibonacci> c("/fibonacci");
 c.waitForServer(8.0);
 fib::Goal g; g.order = 10;
 c.sendGoal(g, [](const fib::Feedback& f){ /* ... */ });
@@ -228,23 +228,23 @@ c.waitForResult(15.0); c.getResult().sequence;   // + getState(), cancelGoal()
 ## Parameters
 
 ```cpp
-noros::set_param("/demo/rate", 30);                 // int/double/bool/string
-int rate = noros::get_param_or<int>("/demo/rate", 10);
-noros::has_param("/demo/rate"); noros::delete_param("/demo/rate");
+irap_noroslib::set_param("/demo/rate", 30);                 // int/double/bool/string
+int rate = irap_noroslib::get_param_or<int>("/demo/rate", 10);
+irap_noroslib::has_param("/demo/rate"); irap_noroslib::delete_param("/demo/rate");
 ```
 
 ## UDPROS (unreliable transport)
 
 ```cpp
-noros::Subscriber<std_msgs::String> sub("/chatter", cb, "udpros");  // 3rd arg
+irap_noroslib::Subscriber<std_msgs::String> sub("/chatter", cb, "udpros");  // 3rd arg
 ```
 
 Publishers offer UDPROS automatically.
 
 ## Run your own ROS master — `nr_roscore`
 
-noros can also *be* the roscore. `examples/nr_roscore.cpp` is a standalone ROS
-master + parameter server that real ROS nodes and noros nodes register with.
+irap_noroslib can also *be* the roscore. `examples/nr_roscore.cpp` is a standalone ROS
+master + parameter server that real ROS nodes and irap_noroslib nodes register with.
 
 ```bash
 ./build/nr_roscore                 # binds :11311, advertises this host
@@ -262,7 +262,7 @@ stress-tested with the topic matrix, a service flood, and a registration storm.
 
 ## Automatic md5 discovery
 
-Subscribe with a wrong/unknown md5 and noros parses the publisher's real md5 from
+Subscribe with a wrong/unknown md5 and irap_noroslib parses the publisher's real md5 from
 the rejection and reconnects (`>>> DISCOVERED real md5 ...`). See
 `examples/md5_discovery.cpp`.
 
@@ -270,14 +270,14 @@ the rejection and reconnects (`>>> DISCOVERED real md5 ...`). See
 
 ```
 cpp/
-  include/noros.hpp      <- THE single header (copy this)
-  examples/*.cpp         <- pubsub, services, actions, ... (each #include "noros.hpp")
-  noros_impl.cpp         <- the one TU that #define NOROS_IMPLEMENTATION
+  include/irap_noroslib.hpp      <- THE single header (copy this)
+  examples/*.cpp         <- pubsub, services, actions, ... (each #include "irap_noroslib.hpp")
+  irap_noroslib_impl.cpp         <- the one TU that #define IRAP_NOROSLIB_IMPLEMENTATION
   CMakeLists.txt         <- builds the examples
   dev/                   <- source of truth (contributors only)
-    include/noros/*.hpp  <- split declaration headers
+    include/irap_noroslib/*.hpp  <- split declaration headers
     src/*.cpp            <- split implementation
-    tools/amalgamate.py  <- regenerates include/noros.hpp from dev/
+    tools/amalgamate.py  <- regenerates include/irap_noroslib.hpp from dev/
 ```
 
 The single header is **generated** from `dev/`. To change the library, edit

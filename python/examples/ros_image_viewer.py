@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""A REAL ROS node (rospy + cv_bridge + OpenCV) that receives the images noros
+"""A REAL ROS node (rospy + cv_bridge + OpenCV) that receives the images irap_noroslib
 publishes and shows them with cv2.imshow. This is the interop proof: a genuine
-ROS subscriber decoding noros's sensor_msgs/Image and sensor_msgs/CompressedImage.
+ROS subscriber decoding irap_noroslib's sensor_msgs/Image and sensor_msgs/CompressedImage.
 
     source /opt/ros/noetic/setup.bash
     export DISPLAY=:0
     python3 ros_image_viewer.py [runtime_sec] [out_dir]
 
 Subscribes:
-    /noros/image_raw              sensor_msgs/Image
-    /noros/image_raw/compressed   sensor_msgs/CompressedImage
+    /irap_noroslib/image_raw              sensor_msgs/Image
+    /irap_noroslib/image_raw/compressed   sensor_msgs/CompressedImage
 """
 import os
 import subprocess
@@ -49,7 +49,7 @@ def raw_cb(m):
 
 def comp_cb(m):
     arr = np.frombuffer(m.data, np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)  # decode the jpeg noros sent
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)  # decode the jpeg irap_noroslib sent
     state["comp"] = img
     state["comp_shape"] = None if img is None else img.shape
     state["ncomp"] += 1
@@ -60,8 +60,8 @@ def main():
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "."
 
     rospy.init_node("ros_image_viewer", disable_signals=True)
-    rospy.Subscriber("/noros/image_raw", Image, raw_cb, queue_size=1)
-    rospy.Subscriber("/noros/image_raw/compressed", CompressedImage, comp_cb, queue_size=1)
+    rospy.Subscriber("/irap_noroslib/image_raw", Image, raw_cb, queue_size=1)
+    rospy.Subscriber("/irap_noroslib/image_raw/compressed", CompressedImage, comp_cb, queue_size=1)
     use_gui = display_reachable()
     rospy.loginfo("ROS viewer up; DISPLAY=%r gui=%s"
                   % (os.environ.get("DISPLAY"), use_gui))
@@ -75,9 +75,9 @@ def main():
         if use_gui:
             try:
                 if state["raw"] is not None:
-                    cv2.imshow("noros raw (real ROS)", state["raw"])
+                    cv2.imshow("irap_noroslib raw (real ROS)", state["raw"])
                 if state["comp"] is not None:
-                    cv2.imshow("noros compressed (real ROS)", state["comp"])
+                    cv2.imshow("irap_noroslib compressed (real ROS)", state["comp"])
                 cv2.waitKey(1)
             except cv2.error as e:
                 rospy.logwarn("cv2.imshow unavailable (%s); continuing headless" % e)

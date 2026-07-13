@@ -1,4 +1,4 @@
-# noros (Python)
+# NoROSLib (Python) — `import irap_noroslib`
 
 A rospy-flavoured ROS client library — **no ROS installed, no bridge, pure Python
 stdlib.** It speaks the real ROS wire protocols (XML-RPC master/slave +
@@ -9,7 +9,7 @@ nothing extra runs on the robot.
 ## Install
 
 ```bash
-pip install noros          # from PyPI (once published)
+pip install irap_noroslib          # from PyPI (once published)
 # or from a checkout:
 pip install ./python       # run from the repo root
 # or editable, for hacking on it:
@@ -27,13 +27,13 @@ viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 **Publisher** (`talker.py`):
 
 ```python
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-noros.init_node("talker")
-pub = noros.Publisher("/chatter", msg.String)
-rate = noros.Rate(10)
-while not noros.is_shutdown():
+irap_noroslib.init_node("talker")
+pub = irap_noroslib.Publisher("/chatter", msg.String)
+rate = irap_noroslib.Rate(10)
+while not irap_noroslib.is_shutdown():
     pub.publish(msg.String(data="hello world"))
     rate.sleep()
 ```
@@ -41,12 +41,12 @@ while not noros.is_shutdown():
 **Subscriber** (`listener.py`):
 
 ```python
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-noros.init_node("listener")
-noros.Subscriber("/chatter", msg.String, lambda m: noros.loginfo("I heard: " + m.data))
-noros.spin()
+irap_noroslib.init_node("listener")
+irap_noroslib.Subscriber("/chatter", msg.String, lambda m: irap_noroslib.loginfo("I heard: " + m.data))
+irap_noroslib.spin()
 ```
 
 Point them at a master (defaults to `http://127.0.0.1:11311`):
@@ -63,10 +63,10 @@ Cross-check with real ROS: `rostopic echo /chatter`, or
 
 ## All examples (`python/examples/`)
 
-The examples just `import noros`, so **install it first** (`pip install noros`, or
+The examples just `import irap_noroslib`, so **install it first** (`pip install irap_noroslib`, or
 `pip install ./python` from this repo). Then run any with
 `python3 python/examples/<name>.py` (a master up, `ROS_MASTER_URI` set).
-Every example calls `noros.set_master_uri(...)` and `noros.set_hostname(...)`
+Every example calls `irap_noroslib.set_master_uri(...)` and `irap_noroslib.set_hostname(...)`
 **before** `init_node` (falling back to `$ROS_MASTER_URI` / `$ROS_HOSTNAME`, else
 a local roscore). The core examples mirror the C++ ones one-for-one.
 
@@ -88,15 +88,15 @@ a local roscore). The core examples mirror the C++ ones one-for-one.
 ## Configuration (from code, no env vars)
 
 ```python
-noros.set_master_uri("http://192.168.10.5:11311")   # overrides $ROS_MASTER_URI
-noros.set_hostname("192.168.10.2")                    # overrides $ROS_IP / $ROS_HOSTNAME
-noros.init_node("my_node")
-# or all at once:  noros.init_node("my_node", master_uri=..., host=...)
+irap_noroslib.set_master_uri("http://192.168.10.5:11311")   # overrides $ROS_MASTER_URI
+irap_noroslib.set_hostname("192.168.10.2")                    # overrides $ROS_IP / $ROS_HOSTNAME
+irap_noroslib.init_node("my_node")
+# or all at once:  irap_noroslib.init_node("my_node", master_uri=..., host=...)
 ```
 
 ## Messages
 
-Built-ins live in `noros.msg`. Every md5sum matches `rosmsg md5` exactly, so they
+Built-ins live in `irap_noroslib.msg`. Every md5sum matches `rosmsg md5` exactly, so they
 interoperate with real ROS nodes. This is the **same 64-type catalog as the C++
 library** — the two are in lock-step.
 
@@ -117,7 +117,7 @@ library** — the two are in lock-step.
 Get a message class two ways — attribute or full name:
 
 ```python
-from noros import msg
+from irap_noroslib import msg
 
 s   = msg.String                     # by attribute
 odo = msg.get("nav_msgs/Odometry")   # by full "pkg/Type" name
@@ -127,7 +127,7 @@ Construct with keyword fields, or set them afterwards. Nested messages, arrays,
 `Header`, and `time`/`duration` all just work:
 
 ```python
-from noros import msg
+from irap_noroslib import msg
 
 # simple scalar wrappers
 msg.Int32(data=7)
@@ -140,10 +140,10 @@ t.linear  = msg.Vector3(x=1.0, y=0.0, z=0.0)   # nested
 t.angular.z = 0.5                               # or reach in directly
 
 # a Header-stamped message (time is a (secs, nsecs) tuple)
-import noros
+import irap_noroslib
 o = msg.Odometry()
 o.header.seq = 0
-o.header.stamp = noros.now()                    # (secs, nsecs)
+o.header.stamp = irap_noroslib.now()                    # (secs, nsecs)
 o.header.frame_id = "odom"
 o.child_frame_id = "base_link"
 o.pose.pose.position.x = 1.5                     # nested-in-nested
@@ -160,24 +160,24 @@ img.data = b"\x00\x01\x02"                       # uint8[] -> bytes
 Publish / subscribe with any of them:
 
 ```python
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-pub = noros.Publisher("/odom", msg.Odometry)          # advertise the type
+pub = irap_noroslib.Publisher("/odom", msg.Odometry)          # advertise the type
 pub.publish(o)
 
-noros.Subscriber("/odom", msg.Odometry,
-                 lambda m: noros.loginfo(m.child_frame_id))
+irap_noroslib.Subscriber("/odom", msg.Odometry,
+                 lambda m: irap_noroslib.loginfo(m.child_frame_id))
 ```
 
 ### Your own message types
 
-Not in the catalog? Define it in one line from `.msg` text — noros derives the
+Not in the catalog? Define it in one line from `.msg` text — irap_noroslib derives the
 md5sum and wire codec. Nesting built-ins (or your own registered types) works;
 a `std_msgs/Header` first field is handled for you:
 
 ```python
-from noros import define_message
+from irap_noroslib import define_message
 
 Pose2D = define_message("my_pkg/Pose2D", "float64 x\nfloat64 y\nfloat64 theta")
 p = Pose2D(x=1.0, y=2.0)
@@ -194,23 +194,23 @@ See `examples/custom_msg.py` and `examples/stamped_pub.py` / `stamped_sub.py`.
 ## Services
 
 ```python
-from noros import define_service
+from irap_noroslib import define_service
 AddTwoInts = define_service("rospy_tutorials/AddTwoInts", "int64 a\nint64 b", "int64 sum")
 
-noros.Service("/add_two_ints", AddTwoInts,
+irap_noroslib.Service("/add_two_ints", AddTwoInts,
               lambda req: AddTwoInts.Response(sum=req.a + req.b))          # server
 
-noros.wait_for_service("/add_two_ints")
-add = noros.ServiceProxy("/add_two_ints", AddTwoInts)                     # client
+irap_noroslib.wait_for_service("/add_two_ints")
+add = irap_noroslib.ServiceProxy("/add_two_ints", AddTwoInts)                     # client
 print(add(AddTwoInts.Request(a=3, b=4)).sum)                              # -> 7
 ```
 
-Built-ins in `noros.srv`: `Empty`, `Trigger`, `SetBool`.
+Built-ins in `irap_noroslib.srv`: `Empty`, `Trigger`, `SetBool`.
 
 ## Actions (actionlib)
 
 ```python
-from noros import define_action, SimpleActionClient, SimpleActionServer
+from irap_noroslib import define_action, SimpleActionClient, SimpleActionServer
 
 Fibonacci = define_action("actionlib_tutorials/Fibonacci",
                           "int32 order", "int32[] sequence", "int32[] sequence")
@@ -226,10 +226,10 @@ See `examples/fibonacci_client.py` / `fibonacci_server.py`.
 ## Parameters
 
 ```python
-noros.set_param("/demo/rate", 30)          # int/float/str/bool/list/dict
-noros.get_param("/demo/rate")              # -> 30
-noros.get_param("/demo/missing", default=5)
-noros.has_param(...); noros.delete_param(...); noros.search_param(...); noros.get_param_names()
+irap_noroslib.set_param("/demo/rate", 30)          # int/float/str/bool/list/dict
+irap_noroslib.get_param("/demo/rate")              # -> 30
+irap_noroslib.get_param("/demo/missing", default=5)
+irap_noroslib.has_param(...); irap_noroslib.delete_param(...); irap_noroslib.search_param(...); irap_noroslib.get_param_names()
 ```
 
 Round-trips with `rosparam get/set/list`.
@@ -237,15 +237,15 @@ Round-trips with `rosparam get/set/list`.
 ## UDPROS (unreliable transport)
 
 ```python
-noros.Subscriber("/chatter", msg.String, cb, transport="udpros")
+irap_noroslib.Subscriber("/chatter", msg.String, cb, transport="udpros")
 ```
 
 Publishers offer UDPROS automatically. See `examples/udp_listener.py`.
 
 ## Run your own ROS master — `nr_roscore`
 
-noros can also *be* the roscore. `nr_roscore` is a standalone ROS master +
-parameter server (pure stdlib) that real ROS nodes and noros nodes register with.
+irap_noroslib can also *be* the roscore. `nr_roscore` is a standalone ROS master +
+parameter server (pure stdlib) that real ROS nodes and irap_noroslib nodes register with.
 
 ```bash
 python3 examples/nr_roscore.py                 # binds :11311, advertises this host
@@ -258,20 +258,20 @@ Config precedence — **port:** `--port` › `$ROS_MASTER_URI` › `11311`;
 it:
 
 ```python
-from noros.roscore import serve
+from irap_noroslib.roscore import serve
 serve(host="192.168.1.10", port=11311)      # blocks; Ctrl-C to stop
 ```
 
 Implements the Master API + full (dict) Parameter Server, and auto-starts a
 `/rosout` → `/rosout_agg` aggregator (disable with `--no-rosout`; run it
-standalone with `python3 -m noros.rosout`). Verified: two real `rostopic
+standalone with `python3 -m irap_noroslib.rosout`). Verified: two real `rostopic
 pub`/`echo` nodes talk through it; `rosservice`/`rosparam`/`rostopic` work
 against it; stress-tested with the topic matrix, service flood, and a
 registration storm.
 
 ## Automatic md5 discovery
 
-Subscribe with `data_class=None` (or a wrong md5) and noros learns the
+Subscribe with `data_class=None` (or a wrong md5) and irap_noroslib learns the
 publisher's real type/md5 from the handshake and reconnects — see
 `examples/md5_discovery.py`.
 

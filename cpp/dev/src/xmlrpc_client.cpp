@@ -1,4 +1,4 @@
-#include "noros/xmlrpc_client.hpp"
+#include "irap_noroslib/xmlrpc_client.hpp"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -6,9 +6,9 @@
 #include <cstring>
 #include <sstream>
 
-#include "noros/net_util.hpp"
+#include "irap_noroslib/net_util.hpp"
 
-namespace noros {
+namespace irap_noroslib {
 namespace {
 
 // Very small HTTP/1.0 POST. Returns the response body, or empty on error.
@@ -21,7 +21,7 @@ bool http_post(const std::string& host, uint16_t port, const std::string& body,
   }
   std::ostringstream req;
   req << "POST /RPC2 HTTP/1.0\r\n"
-      << "User-Agent: noros/0.1\r\n"
+      << "User-Agent: irap_noroslib/0.1\r\n"
       << "Host: " << host << ":" << port << "\r\n"
       << "Content-Type: text/xml\r\n"
       << "Content-Length: " << body.size() << "\r\n"
@@ -258,4 +258,4 @@ bool request_topic_udpros(const std::string& publisher_uri, const std::string& c
   return true;
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

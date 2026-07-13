@@ -1,4 +1,4 @@
-#include "noros/xmlrpc_server.hpp"
+#include "irap_noroslib/xmlrpc_server.hpp"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -8,10 +8,10 @@
 #include <cstring>
 #include <sstream>
 
-#include "noros/net_util.hpp"
-#include "noros/xmlrpc.hpp"
+#include "irap_noroslib/net_util.hpp"
+#include "irap_noroslib/xmlrpc.hpp"
 
-namespace noros {
+namespace irap_noroslib {
 
 SlaveServer::SlaveServer(std::string node_name, std::string master_uri)
     : node_name_(std::move(node_name)), master_uri_(std::move(master_uri)) {}
@@ -176,4 +176,4 @@ std::string SlaveServer::dispatch(const std::string& method, const std::vector<X
   return ok_response(XmlValue::Int(0), "unhandled: " + method);
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

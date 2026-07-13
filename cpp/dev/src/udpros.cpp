@@ -1,9 +1,9 @@
-#include "noros/udpros.hpp"
-#include "noros/platform.hpp"
+#include "irap_noroslib/udpros.hpp"
+#include "irap_noroslib/platform.hpp"
 
 #include <cstring>
 
-namespace noros {
+namespace irap_noroslib {
 namespace {
 
 inline void put_u16(uint8_t* p, uint16_t v) {
@@ -67,7 +67,7 @@ void udpros_send_stream(int fd, const sockaddr* dst, socklen_t dlen, uint32_t co
     }
     h.encode(dgram.data());
     if (chunk) std::memcpy(dgram.data() + kUdprosHeaderSize, stream + offset, chunk);
-    noros::net_sendto(fd, dgram.data(), kUdprosHeaderSize + chunk, MSG_NOSIGNAL, dst, dlen);
+    irap_noroslib::net_sendto(fd, dgram.data(), kUdprosHeaderSize + chunk, MSG_NOSIGNAL, dst, dlen);
     offset += chunk;
   }
 }
@@ -114,4 +114,4 @@ bool UdprosReceiver::feed(const uint8_t* datagram, size_t len, std::vector<uint8
   return false;
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

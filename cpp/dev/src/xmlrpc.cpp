@@ -1,9 +1,9 @@
-#include "noros/xmlrpc.hpp"
+#include "irap_noroslib/xmlrpc.hpp"
 
 #include <cstdlib>
 #include <sstream>
 
-namespace noros {
+namespace irap_noroslib {
 
 int64_t XmlValue::as_int() const {
   switch (type) {
@@ -372,4 +372,4 @@ bool parse_method_response(const std::string& xml, XmlValue* out, std::string* f
   return false;
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

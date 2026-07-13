@@ -1,6 +1,6 @@
-# noros (Python) — runtime requirements
+# irap_noroslib (Python) — runtime requirements
 #
-# There is NOTHING to pip install. noros talks to ROS using only the Python
+# There is NOTHING to pip install. irap_noroslib talks to ROS using only the Python
 # standard library, so this file has no packages in it on purpose.
 #
 # The libraries it actually uses to communicate are all built into CPython 3.6+:
@@ -13,7 +13,7 @@
 #   hashlib                         message md5sum (ROS gentools algorithm)
 #   re, os, sys, time, argparse     supporting stdlib modules
 #
-# All of the above ship with Python — `import noros` needs no third-party
+# All of the above ship with Python — `import irap_noroslib` needs no third-party
 # packages.
 #
 # ---------------------------------------------------------------------------

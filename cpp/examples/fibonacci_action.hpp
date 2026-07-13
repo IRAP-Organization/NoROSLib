@@ -1,14 +1,14 @@
-// Defining an ACTION type in noros C++: the 7 auto-generated message structs
+// Defining an ACTION type in irap_noroslib C++: the 7 auto-generated message structs
 // (Goal/Result/Feedback + the Action* wrappers) grouped in a traits struct.
 // md5sums come from `rosmsg md5 <type>`. This is actionlib_tutorials/Fibonacci.
 #pragma once
-#include "noros.hpp"
-#include "noros.hpp"
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"
 
 namespace fib {
-using noros::Reader;
-using noros::Writer;
+using irap_noroslib::Reader;
+using irap_noroslib::Writer;
 
 inline void write_i32_array(Writer& w, const std::vector<int32_t>& v) {
   w.u32((uint32_t)v.size());

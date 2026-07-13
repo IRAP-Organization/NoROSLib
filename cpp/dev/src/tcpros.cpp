@@ -1,10 +1,10 @@
-#include "noros/tcpros.hpp"
+#include "irap_noroslib/tcpros.hpp"
 
 #include <cstring>
 
-#include "noros/net_util.hpp"
+#include "irap_noroslib/net_util.hpp"
 
-namespace noros {
+namespace irap_noroslib {
 namespace {
 
 void put_u32_le(std::vector<uint8_t>* v, uint32_t x) {
@@ -133,4 +133,4 @@ bool parse_type_md5_from_error(const std::string& error, std::string* type, std:
   return true;
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

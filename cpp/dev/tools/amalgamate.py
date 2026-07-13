@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Amalgamate the split noros C++ headers + sources into the single header.
+"""Amalgamate the split irap_noroslib C++ headers + sources into the single header.
 
-Source of truth:  cpp/dev/include/noros/*.hpp  +  cpp/dev/src/*.cpp
-Output:           cpp/include/noros.hpp   (the file users copy)
+Source of truth:  cpp/dev/include/irap_noroslib/*.hpp  +  cpp/dev/src/*.cpp
+Output:           cpp/include/irap_noroslib.hpp   (the file users copy)
 
   - Declarations are always visible.
-  - Implementation is compiled only where NOROS_IMPLEMENTATION is defined
+  - Implementation is compiled only where IRAP_NOROSLIB_IMPLEMENTATION is defined
     (stb-style), so it lands in exactly one translation unit.
   - platform.hpp (the Winsock/POSIX compatibility layer) is emitted verbatim and
     FIRST, so its conditional <winsock2.h>/<sys/socket.h> includes stay inside
@@ -19,9 +19,9 @@ import os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEV = os.path.dirname(HERE)                        # cpp/dev
 CPP = os.path.dirname(DEV)                          # cpp
-INC = os.path.join(DEV, "include", "noros")
+INC = os.path.join(DEV, "include", "irap_noroslib")
 SRC = os.path.join(DEV, "src")
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CPP, "include", "noros.hpp")
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CPP, "include", "irap_noroslib.hpp")
 
 # platform.hpp is handled specially (emitted verbatim, first); not in this list.
 HEADERS = ["message", "std_msgs", "geometry_msgs", "sensor_msgs",
@@ -41,7 +41,7 @@ PLATFORM_HEADERS = {
 }
 
 SYS_INC = re.compile(r'^\s*#\s*include\s*<([^>]+)>')
-NOROS_INC = re.compile(r'^\s*#\s*include\s*"noros/')
+IRAP_NOROSLIB_INC = re.compile(r'^\s*#\s*include\s*"irap_noroslib/')
 PRAGMA = re.compile(r'^\s*#\s*pragma\s+once')
 
 
@@ -54,7 +54,7 @@ def split_file(path):
             if m.group(1).strip().lower() not in PLATFORM_HEADERS:
                 sys_inc.add(line.strip())
             # platform-owned headers are dropped here (platform.hpp provides them)
-        elif NOROS_INC.match(line) or PRAGMA.match(line):
+        elif IRAP_NOROSLIB_INC.match(line) or PRAGMA.match(line):
             continue
         else:
             body.append(line)
@@ -72,7 +72,7 @@ def main():
     for h in HEADERS:
         s, b = split_file(os.path.join(INC, h + ".hpp"))
         all_sys |= s
-        hdr_bodies.append("// ===== noros/%s.hpp =====\n%s" % (h, b))
+        hdr_bodies.append("// ===== irap_noroslib/%s.hpp =====\n%s" % (h, b))
     for c in SOURCES:
         s, b = split_file(os.path.join(SRC, c + ".cpp"))
         all_sys |= s
@@ -81,19 +81,19 @@ def main():
     platform = read_verbatim_no_pragma(os.path.join(INC, "platform.hpp"))
 
     banner = (
-        "// noros.hpp - single-header ROS pub/sub client (no ROS libraries).\n"
+        "// irap_noroslib.hpp - single-header ROS pub/sub client (no ROS libraries).\n"
         "//\n"
-        "// A real roscore and real ROS nodes treat noros as a legitimate node: it\n"
+        "// A real roscore and real ROS nodes treat irap_noroslib as a legitimate node: it\n"
         "// speaks the ROS wire protocols (XML-RPC master/slave + TCPROS/UDPROS)\n"
         "// directly. Topics, services, actions and parameters; std_msgs/geometry_msgs/\n"
         "// sensor_msgs built in, plus your own message structs.\n"
         "//\n"
         "// USAGE (header-only, stb-style):\n"
         "//   In ONE .cpp of your project:\n"
-        "//       #define NOROS_IMPLEMENTATION\n"
-        "//       #include \"noros.hpp\"\n"
+        "//       #define IRAP_NOROSLIB_IMPLEMENTATION\n"
+        "//       #include \"irap_noroslib.hpp\"\n"
         "//   In every other file, just:\n"
-        "//       #include \"noros.hpp\"\n"
+        "//       #include \"irap_noroslib.hpp\"\n"
         "//   Compile with C++17 and link sockets/threads:\n"
         "//       Linux/macOS:  -std=c++17 -pthread\n"
         "//       Windows (MinGW): -std=c++17 -lws2_32   (MSVC auto-links ws2_32)\n"
@@ -108,9 +108,9 @@ def main():
              "// ---- portable standard-library includes ----",
              sys_block, "",
              "\n\n".join(hdr_bodies),
-             "\n\n#ifdef NOROS_IMPLEMENTATION\n",
+             "\n\n#ifdef IRAP_NOROSLIB_IMPLEMENTATION\n",
              "\n\n".join(src_bodies),
-             "\n#endif // NOROS_IMPLEMENTATION"]
+             "\n#endif // IRAP_NOROSLIB_IMPLEMENTATION"]
     open(OUT, "w").write("\n".join(parts) + "\n")
     print("wrote %s (%d lines)" % (OUT, len(open(OUT).read().splitlines())))
 

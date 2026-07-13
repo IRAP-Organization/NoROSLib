@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""noros subscriber over UDPROS (unreliable UDP transport).
+"""irap_noroslib subscriber over UDPROS (unreliable UDP transport).
 
 Feed it from a roscpp publisher (which offers UDPROS):
     rosrun roscpp_tutorials talker
@@ -8,19 +8,19 @@ Then: python3 udp_listener.py
 Only the transport hint changes vs a normal Subscriber.
 """
 import os
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
 
 def main():
-    # Point noros at the ROS master before init_node (defaults to a local roscore).
-    noros.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
-    noros.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
-    noros.init_node("noros_udp_listener")
-    noros.Subscriber("/chatter", msg.String,
-                     lambda m: noros.loginfo("UDPROS heard: %s" % m.data),
+    # Point irap_noroslib at the ROS master before init_node (defaults to a local roscore).
+    irap_noroslib.set_master_uri(os.environ.get("ROS_MASTER_URI", "http://localhost:11311"))
+    irap_noroslib.set_hostname(os.environ.get("ROS_HOSTNAME", "localhost"))
+    irap_noroslib.init_node("irap_noroslib_udp_listener")
+    irap_noroslib.Subscriber("/chatter", msg.String,
+                     lambda m: irap_noroslib.loginfo("UDPROS heard: %s" % m.data),
                      transport="udpros")            # <-- UDP instead of TCP
-    noros.spin()
+    irap_noroslib.spin()
 
 
 if __name__ == "__main__":

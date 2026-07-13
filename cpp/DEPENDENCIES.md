@@ -1,10 +1,10 @@
-# noros (C++) — dependencies
+# irap_noroslib (C++) — dependencies
 
-noros links **zero ROS libraries** and pulls in **no third-party packages**.
+irap_noroslib links **zero ROS libraries** and pulls in **no third-party packages**.
 Everything it needs ships with a standard C++ toolchain — that is the whole
 point of the library.
 
-## Required (to compile any program that uses noros)
+## Required (to compile any program that uses irap_noroslib)
 
 - A **C++17** compiler — g++ ≥ 7, clang ≥ 5, or MSVC 2017+.
 - The platform's **sockets + threads**, which are part of the OS/toolchain, not
@@ -19,14 +19,14 @@ libraries, no CMake-time codegen.**
 ## Optional (only to build the bundled examples the convenient way)
 
 - **CMake ≥ 3.10** — drives `cmake -S . -B build && cmake --build build -j`.
-  You do **not** need CMake to use noros: copy `include/noros.hpp` into your
+  You do **not** need CMake to use irap_noroslib: copy `include/irap_noroslib.hpp` into your
   project and compile a single `.cpp` by hand, e.g.
 
   ```bash
   # Linux / macOS / WSL
-  g++ -std=c++17 -pthread your_app.cpp noros_impl.cpp -o your_app
+  g++ -std=c++17 -pthread your_app.cpp irap_noroslib_impl.cpp -o your_app
   # Windows, MinGW
-  g++ -std=c++17 your_app.cpp noros_impl.cpp -o your_app.exe -lws2_32
+  g++ -std=c++17 your_app.cpp irap_noroslib_impl.cpp -o your_app.exe -lws2_32
   ```
 
 ## Standard-library headers used

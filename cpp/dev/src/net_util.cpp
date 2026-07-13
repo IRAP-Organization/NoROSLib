@@ -1,10 +1,10 @@
-#include "noros/net_util.hpp"
-#include "noros/platform.hpp"
+#include "irap_noroslib/net_util.hpp"
+#include "irap_noroslib/platform.hpp"
 
 #include <cstdlib>
 #include <cstring>
 
-namespace noros {
+namespace irap_noroslib {
 
 void set_tcp_nodelay(int fd) {
   int one = 1;
@@ -196,4 +196,4 @@ bool parse_http_uri(const std::string& uri, std::string* host, uint16_t* port) {
   return true;
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

@@ -1,25 +1,25 @@
-// noros talker — publish std_msgs/String at 10 Hz to a real roscore.
+// irap_noroslib talker — publish std_msgs/String at 10 Hz to a real roscore.
 //   rostopic echo /chatter        # watch it from real ROS
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 #include <cstdlib>
 
 int main() {
-  // Point noros at the ROS master before init_node (defaults to a local roscore).
+  // Point irap_noroslib at the ROS master before init_node (defaults to a local roscore).
   const char* mu = std::getenv("ROS_MASTER_URI");
   const char* hn = std::getenv("ROS_HOSTNAME");
-  noros::set_master_uri(mu ? mu : "http://localhost:11311");
-  noros::set_hostname(hn ? hn : "localhost");
-  noros::init_node("noros_talker");
-  noros::Publisher<std_msgs::String> pub("/chatter");
-  noros::Rate rate(10);
+  irap_noroslib::set_master_uri(mu ? mu : "http://localhost:11311");
+  irap_noroslib::set_hostname(hn ? hn : "localhost");
+  irap_noroslib::init_node("irap_noroslib_talker");
+  irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
+  irap_noroslib::Rate rate(10);
   int i = 0;
-  while (noros::ok()) {
+  while (irap_noroslib::ok()) {
     std_msgs::String m;
     m.data = "hello world " + std::to_string(i++);
     pub.publish(m);
-    noros::loginfo("published: " + m.data);
+    irap_noroslib::loginfo("published: " + m.data);
     rate.sleep();
   }
-  noros::shutdown("done");
+  irap_noroslib::shutdown("done");
   return 0;
 }

@@ -1,11 +1,11 @@
-"""Offline regression tests for the noros message engine: md5sums must match
+"""Offline regression tests for the irap_noroslib message engine: md5sums must match
 real ROS, and every type must round-trip through serialize/deserialize.
 
 Run:  cd py && PYTHONPATH=. python3 tests/test_messages.py
 """
-from noros import msg, define_message, srv
-from noros.srv import define_service
-from noros.message import registry
+from irap_noroslib import msg, define_message, srv
+from irap_noroslib.srv import define_service
+from irap_noroslib.message import registry
 
 # service md5sums as reported by `rossrv md5 <type>`.
 EXPECT_SRV_MD5 = {
@@ -70,15 +70,15 @@ def test_roundtrip_builtins():
 def test_custom_and_constants():
     assert msg.PointField.FLOAT32 == 7
 
-    Pose2D = define_message("noros_test/Pose2D",
+    Pose2D = define_message("irap_noroslib_test/Pose2D",
                             "float64 x\nfloat64 y\nfloat64 theta\n")
     # same fields as geometry_msgs/Pose2D -> same md5
     assert Pose2D.md5sum() == "938fa65709584ad8e77d238529be13b8"
     p = Pose2D(x=1.0, y=2.0, theta=3.14)
     assert Pose2D.deserialize(p.serialize()) == p
 
-    Path2D = define_message("noros_test/Path2D",
-                            "std_msgs/Header header\nnoros_test/Pose2D[] poses\n")
+    Path2D = define_message("irap_noroslib_test/Path2D",
+                            "std_msgs/Header header\nirap_noroslib_test/Pose2D[] poses\n")
     pa = Path2D()
     pa.poses = [Pose2D(x=1.0), Pose2D(x=2.0)]
     pa2 = Path2D.deserialize(pa.serialize())
@@ -86,8 +86,8 @@ def test_custom_and_constants():
 
 
 def test_action_md5():
-    from noros import define_action
-    # actionlib_msgs (registered on import of noros.msg)
+    from irap_noroslib import define_action
+    # actionlib_msgs (registered on import of irap_noroslib.msg)
     assert registry.get_spec("actionlib_msgs/GoalStatus").compute_md5() == \
         "d388f9b87b3c471f784434d671988d4a"
     assert registry.get_spec("actionlib_msgs/GoalStatusArray").compute_md5() == \
@@ -119,9 +119,9 @@ def test_bare_header_md5():
     assert Log.md5sum() == "acffd30cd6b6de30f120938c17c593fb", Log.md5sum()
 
     # bare `Header` must produce the SAME md5 as fully-qualified `std_msgs/Header`.
-    bare = define_message("noros_test/StampedBare",
+    bare = define_message("irap_noroslib_test/StampedBare",
                           "Header header\ngeometry_msgs/Pose pose\n")
-    full = define_message("noros_test/StampedFull",
+    full = define_message("irap_noroslib_test/StampedFull",
                           "std_msgs/Header header\ngeometry_msgs/Pose pose\n")
     assert bare.md5sum() == full.md5sum(), (bare.md5sum(), full.md5sum())
     # same fields as geometry_msgs/PoseStamped -> same md5 as `rosmsg md5`.
@@ -140,7 +140,7 @@ def test_bare_header_md5():
 def test_extended_catalog_md5():
     # nav_msgs / diagnostic_msgs / trajectory_msgs + the geometry/sensor types
     # they build on -- every md5 must match `rosmsg md5`.
-    from noros import msg
+    from irap_noroslib import msg
     expect = {
         "geometry_msgs/Transform": "ac9eff44abf714214112b05d54a3cf9b",
         "geometry_msgs/TransformStamped": "b5764a33bfeb3588febc2682852579b0",

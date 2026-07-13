@@ -3,7 +3,7 @@
 // Implements the ROS Master API (register/unregister publisher/subscriber/
 // service, lookupService/Node, getSystemState, getPublishedTopics, ...) and a
 // scalar/array Parameter Server, and notifies subscribers via publisherUpdate.
-// Real ROS nodes (rospy/roscpp) and noros nodes register with it.
+// Real ROS nodes (rospy/roscpp) and irap_noroslib nodes register with it.
 //
 //   ./nr_roscore                 # binds :11311, advertises this host
 //   ./nr_roscore --port 11322
@@ -14,11 +14,11 @@
 //
 // NOTE: parameters are scalar/array only (the Python nr_roscore does full dict
 // trees). Enough for topics, services, actions and typical scalar params.
-#include "noros.hpp"
-#include "noros.hpp"
-#include "noros.hpp"
-#include "noros.hpp"
-#include "noros.hpp"   // noros client, used to run the /rosout aggregator
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"
+#include "irap_noroslib.hpp"   // irap_noroslib client, used to run the /rosout aggregator
 
 #include <cctype>
 #include <cstdio>
@@ -31,7 +31,7 @@
 #include <thread>
 #include <vector>
 
-using noros::XmlValue;
+using irap_noroslib::XmlValue;
 
 // Portable getpid (defined after main's helpers); declared here for early use.
 int getpid_portable();
@@ -76,7 +76,7 @@ void notify_subscribers(const std::string& topic) {
   for (auto& api : subs) {
     std::thread([api, topic, pub_arr] {
       XmlValue res; std::string err;
-      noros::xmlrpc_call(api, "publisherUpdate",
+      irap_noroslib::xmlrpc_call(api, "publisherUpdate",
                          {XmlValue::Str("/master"), XmlValue::Str(topic), XmlValue::Array(pub_arr)},
                          &res, &err);
     }).detach();
@@ -341,7 +341,7 @@ bool read_http_request(int fd, std::string* body) {
       size_t have = data.size() - (header_end + 4);
       if (!have_len || have >= content_length) break;
     }
-    ssize_t r = noros::net_recv(fd, buf, sizeof(buf), 0);
+    ssize_t r = irap_noroslib::net_recv(fd, buf, sizeof(buf), 0);
     if (r <= 0) break;
     data.append(buf, (size_t)r);
   }
@@ -354,7 +354,7 @@ void send_http_response(int fd, const std::string& xml) {
   std::ostringstream resp;
   resp << "HTTP/1.0 200 OK\r\nContent-Type: text/xml\r\nContent-Length: " << xml.size() << "\r\n\r\n" << xml;
   std::string s = resp.str();
-  noros::write_n(fd, s.data(), s.size());
+  irap_noroslib::write_n(fd, s.data(), s.size());
 }
 
 void handle(int fd) {
@@ -362,11 +362,11 @@ void handle(int fd) {
   if (read_http_request(fd, &body)) {
     std::string method; std::vector<XmlValue> params;
     XmlValue result;
-    if (noros::parse_method_call(body, &method, &params)) result = dispatch(method, params);
+    if (irap_noroslib::parse_method_call(body, &method, &params)) result = dispatch(method, params);
     else result = reply(0, "parse error", XmlValue::Int(0));
-    send_http_response(fd, noros::build_method_response(result));
+    send_http_response(fd, irap_noroslib::build_method_response(result));
   }
-  noros::net_close(fd);
+  irap_noroslib::net_close(fd);
 }
 
 // ---- /rosout aggregator ---------------------------------------------------
@@ -386,11 +386,11 @@ struct Log {
 
 // Runs the aggregator node and spins (blocks until shutdown / Ctrl-C).
 void run_rosout(int port, const std::string& host) {
-  noros::init_node("/rosout", "http://127.0.0.1:" + std::to_string(port) + "/", host);
-  static noros::Publisher<Log> agg("/rosout_agg");
-  static noros::Subscriber<Log> sub("/rosout", [](const Log& m) { agg.publish(m); });
-  noros::loginfo("started /rosout aggregator (-> /rosout_agg)");
-  noros::spin();
+  irap_noroslib::init_node("/rosout", "http://127.0.0.1:" + std::to_string(port) + "/", host);
+  static irap_noroslib::Publisher<Log> agg("/rosout_agg");
+  static irap_noroslib::Subscriber<Log> sub("/rosout", [](const Log& m) { agg.publish(m); });
+  irap_noroslib::loginfo("started /rosout aggregator (-> /rosout_agg)");
+  irap_noroslib::spin();
 }
 
 }  // namespace
@@ -404,7 +404,7 @@ int getpid_portable() {
 }
 
 int main(int argc, char** argv) {
-  noros::net_startup();
+  irap_noroslib::net_startup();
   std::string host, bind = "0.0.0.0";
   int port = 0;
   bool rosout = true;
@@ -419,7 +419,7 @@ int main(int argc, char** argv) {
   if (port == 0) {
     if (const char* mu = std::getenv("ROS_MASTER_URI")) {
       std::string h; uint16_t pp = 0;
-      if (noros::parse_http_uri(mu, &h, &pp)) port = pp;
+      if (irap_noroslib::parse_http_uri(mu, &h, &pp)) port = pp;
     }
   }
   if (port == 0) port = 11311;
@@ -431,15 +431,15 @@ int main(int argc, char** argv) {
   g_master_uri = "http://" + host + ":" + std::to_string(port) + "/";
 
   uint16_t bound = 0;
-  int listen_fd = noros::tcp_listen(bind, (uint16_t)port, &bound);
+  int listen_fd = irap_noroslib::tcp_listen(bind, (uint16_t)port, &bound);
   if (listen_fd < 0) {
     std::fprintf(stderr, "[nr_roscore] failed to bind %s:%d (in use?)\n", bind.c_str(), port);
     return 1;
   }
   // Seed the params a roscore normally provides.
-  param_set("/run_id", XmlValue::Str("noros-" + std::to_string(getpid_portable())));
-  param_set("/rosdistro", XmlValue::Str("noros\n"));
-  param_set("/rosversion", XmlValue::Str("noros 0.1.0\n"));
+  param_set("/run_id", XmlValue::Str("irap_noroslib-" + std::to_string(getpid_portable())));
+  param_set("/rosdistro", XmlValue::Str("irap_noroslib\n"));
+  param_set("/rosversion", XmlValue::Str("irap_noroslib 0.1.0\n"));
 
   std::printf("[nr_roscore] ROS master online\n");
   std::printf("[nr_roscore] ROS_MASTER_URI=%s  (bind %s:%d)\n", g_master_uri.c_str(), bind.c_str(), port);

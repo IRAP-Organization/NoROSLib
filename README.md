@@ -24,7 +24,7 @@ Python • C++ • Windows • Linux • macOS
   <img src="https://img.shields.io/badge/License-MIT-green">
 </p>
 **A lightweight ROS client library that needs no ROS installed — and no bridge.**
-NoROSLib (you import it as `noros`) speaks ROS 1's own wire protocol *directly*: it
+NoROSLib (you import it as `irap_noroslib`) speaks ROS 1's own wire protocol *directly*: it
 registers with the **ROS Master over XML-RPC** and exchanges messages over
 **TCPROS / UDPROS** — the very protocols `rospy` and `roscpp` use. So it connects
 **straight to a native, unmodified `roscore`**, and real ROS nodes see it as a
@@ -56,7 +56,7 @@ indistinguishable from a native `roscpp` / `rospy` node. Point it at the robot's
 ```
    your machine (Windows / macOS / any Linux)          the robot (Ubuntu + ROS)
    ┌───────────────────────────┐                       ┌────────────────────────┐
-   │  your app  +  noros        │   XML-RPC + TCPROS    │  roscore               │
+   │  your app  +  irap_noroslib        │   XML-RPC + TCPROS    │  roscore               │
    │  (no ROS, no bridge)       │◄─────────────────────►│  native rospy/roscpp   │
    └───────────────────────────┘   (the real ROS wire)  │  nodes (unmodified)    │
                                                          └────────────────────────┘
@@ -115,11 +115,11 @@ it from elsewhere.
 ### Python — `pip install`
 
 ```bash
-pip install noros           # from PyPI (once published)
+pip install irap_noroslib           # from PyPI (once published)
 pip install ./python        # from this repo
 ```
 
-**Dependencies: none.** noros is pure **Python 3.6+ standard library** — it talks
+**Dependencies: none.** irap_noroslib is pure **Python 3.6+ standard library** — it talks
 to ROS using only `xmlrpc`, `socket`, `socketserver`, `threading`, `struct` and
 `hashlib`, all built into CPython. [`python/requirements.txt`](python/requirements.txt)
 is intentionally empty and documents exactly that. (OpenCV/numpy are needed *only*
@@ -128,13 +128,13 @@ by the optional webcam demos, never by the library.)
 Then:
 
 ```python
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-noros.init_node("talker")
-pub = noros.Publisher("/chatter", msg.String)
-rate = noros.Rate(10)
-while not noros.is_shutdown():
+irap_noroslib.init_node("talker")
+pub = irap_noroslib.Publisher("/chatter", msg.String)
+rate = irap_noroslib.Rate(10)
+while not irap_noroslib.is_shutdown():
     pub.publish(msg.String(data="hello world"))
     rate.sleep()
 ```
@@ -143,15 +143,15 @@ See [`python/README.md`](python/README.md).
 
 ### C++ — copy one header
 
-The whole library is a single header, [`cpp/include/noros.hpp`](cpp/include/noros.hpp).
+The whole library is a single header, [`cpp/include/irap_noroslib.hpp`](cpp/include/irap_noroslib.hpp).
 Copy it into your include path. Put the implementation in **one** `.cpp`:
 
 ```cpp
-#define NOROS_IMPLEMENTATION
-#include "noros.hpp"
+#define IRAP_NOROSLIB_IMPLEMENTATION
+#include "irap_noroslib.hpp"
 ```
 
-Everywhere else just `#include "noros.hpp"`. Compile with `-std=c++17 -pthread`.
+Everywhere else just `#include "irap_noroslib.hpp"`. Compile with `-std=c++17 -pthread`.
 
 **Dependencies: none beyond a C++17 toolchain.** No ROS, no Boost, no third-party
 libraries — just the compiler and the OS's own sockets/threads: link `-pthread`
@@ -161,12 +161,12 @@ optional, only to build the bundled examples. Full details in
 optional webcam examples, never by the library.)
 
 ```cpp
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 int main() {
-  noros::init_node("talker");
-  noros::Publisher<std_msgs::String> pub("/chatter");
-  noros::Rate rate(10);
-  while (noros::ok()) {
+  irap_noroslib::init_node("talker");
+  irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
+  irap_noroslib::Rate rate(10);
+  while (irap_noroslib::ok()) {
     std_msgs::String m; m.data = "hi";
     pub.publish(m); rate.sleep();
   }
@@ -185,9 +185,9 @@ connection with
 but our version has [.../4193...]. Dropping connection.
 ```
 
-noros **reads the publisher's real md5 out of that error, adopts it, and
+irap_noroslib **reads the publisher's real md5 out of that error, adopts it, and
 reconnects** — so you never get stuck on an md5 you got wrong. Discovery is
-symmetric: noros emits the same error to peers that present a wrong md5 to it.
+symmetric: irap_noroslib emits the same error to peers that present a wrong md5 to it.
 
 ## Publish / subscribe
 
@@ -197,14 +197,14 @@ The full pub + sub pair in both languages (examples: `talker`/`listener`).
 
 ```python
 # talker.py — publisher
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-noros.init_node("talker")
-pub = noros.Publisher("/chatter", msg.String)
-rate = noros.Rate(10)                       # 10 Hz
+irap_noroslib.init_node("talker")
+pub = irap_noroslib.Publisher("/chatter", msg.String)
+rate = irap_noroslib.Rate(10)                       # 10 Hz
 i = 0
-while not noros.is_shutdown():
+while not irap_noroslib.is_shutdown():
     pub.publish(msg.String(data="hello world %d" % i))
     i += 1
     rate.sleep()
@@ -212,26 +212,26 @@ while not noros.is_shutdown():
 
 ```python
 # listener.py — subscriber
-import noros
-from noros import msg
+import irap_noroslib
+from irap_noroslib import msg
 
-noros.init_node("listener")
-noros.Subscriber("/chatter", msg.String,
-                 lambda m: noros.loginfo("I heard: " + m.data))
-noros.spin()
+irap_noroslib.init_node("listener")
+irap_noroslib.Subscriber("/chatter", msg.String,
+                 lambda m: irap_noroslib.loginfo("I heard: " + m.data))
+irap_noroslib.spin()
 ```
 
 ### C++
 
 ```cpp
 // talker.cpp — publisher
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 int main() {
-  noros::init_node("talker");
-  noros::Publisher<std_msgs::String> pub("/chatter");
-  noros::Rate rate(10);                       // 10 Hz
+  irap_noroslib::init_node("talker");
+  irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
+  irap_noroslib::Rate rate(10);                       // 10 Hz
   int i = 0;
-  while (noros::ok()) {
+  while (irap_noroslib::ok()) {
     std_msgs::String m;
     m.data = "hello world " + std::to_string(i++);
     pub.publish(m);
@@ -242,12 +242,12 @@ int main() {
 
 ```cpp
 // listener.cpp — subscriber
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 int main() {
-  noros::init_node("listener");
-  noros::Subscriber<std_msgs::String> sub("/chatter",
-      [](const std_msgs::String& m){ noros::loginfo("I heard: " + m.data); });
-  noros::spin();
+  irap_noroslib::init_node("listener");
+  irap_noroslib::Subscriber<std_msgs::String> sub("/chatter",
+      [](const std_msgs::String& m){ irap_noroslib::loginfo("I heard: " + m.data); });
+  irap_noroslib::spin();
 }
 ```
 
@@ -256,9 +256,9 @@ Both interoperate with real ROS: `rostopic echo /chatter` sees the talker, and
 
 ## Built-in messages
 
-A ready-to-use catalog ships with noros — every md5sum matches `rosmsg md5 <type>`
-exactly, so they interoperate with real ROS nodes. Python: `from noros import msg`
-then `msg.Odometry` (or `msg.get("nav_msgs/Odometry")`). C++: `#include "noros.hpp"`
+A ready-to-use catalog ships with irap_noroslib — every md5sum matches `rosmsg md5 <type>`
+exactly, so they interoperate with real ROS nodes. Python: `from irap_noroslib import msg`
+then `msg.Odometry` (or `msg.get("nav_msgs/Odometry")`). C++: `#include "irap_noroslib.hpp"`
 then `nav_msgs::Odometry`.
 
 The full catalog is **64 types**, identical in Python and C++:
@@ -281,20 +281,20 @@ in **[python/README.md](python/README.md#messages)** and
 `msg.*` (Python) and the matching `pkg_msgs::*` structs (C++), every md5 matching
 `rosmsg md5`. The two libraries are in lock-step.
 
-Need a type that isn't here? Define it in one line (below) — noros derives the
+Need a type that isn't here? Define it in one line (below) — irap_noroslib derives the
 md5 and codec from the `.msg` text.
 
 ## Custom messages
 
 Ship your own message type. Its md5sum is derived by the exact ROS algorithm (so
 it matches `rosmsg md5 <type>` and interoperates), or — if you don't know it —
-noros discovers the publisher's real md5 from the handshake. Example: `custom_msg`.
+irap_noroslib discovers the publisher's real md5 from the handshake. Example: `custom_msg`.
 
 ### Python — one call from `.msg` text
 
 ```python
-import noros
-from noros import define_message
+import irap_noroslib
+from irap_noroslib import define_message
 
 # md5 + wire codec derived automatically from the .msg text
 Pose2D = define_message("my_pkg/Pose2D", """
@@ -303,10 +303,10 @@ Pose2D = define_message("my_pkg/Pose2D", """
     float64 theta
 """)
 
-noros.init_node("pub")
-pub = noros.Publisher("/pose", Pose2D)
+irap_noroslib.init_node("pub")
+pub = irap_noroslib.Publisher("/pose", Pose2D)
 pub.publish(Pose2D(x=1.0, y=2.0, theta=3.14))
-# subscribe: noros.Subscriber("/pose", Pose2D, lambda m: print(m.x, m.y, m.theta))
+# subscribe: irap_noroslib.Subscriber("/pose", Pose2D, lambda m: print(m.x, m.y, m.theta))
 ```
 
 Nest other registered types by full name (`std_msgs/Header header`, `my_pkg/Pose2D[] poses`),
@@ -314,12 +314,12 @@ use constants (`uint8 FOO=1`), fixed/variable arrays, and all ROS builtins.
 
 ### C++ — a small struct
 
-A noros message is any struct with the three static strings + the two codec
-functions (use `noros::Writer` / `noros::Reader`, little-endian, length-prefixed —
+A irap_noroslib message is any struct with the three static strings + the two codec
+functions (use `irap_noroslib::Writer` / `irap_noroslib::Reader`, little-endian, length-prefixed —
 the ROS recipe):
 
 ```cpp
-#include "noros.hpp"
+#include "irap_noroslib.hpp"
 
 struct Pose2D {
   static constexpr const char* TYPE = "my_pkg/Pose2D";
@@ -327,17 +327,17 @@ struct Pose2D {
   static constexpr const char* DEFINITION = "float64 x\nfloat64 y\nfloat64 theta\n";
   double x = 0, y = 0, theta = 0;
   std::vector<uint8_t> serialize() const {
-    noros::Writer w; w.f64(x); w.f64(y); w.f64(theta); return w.b;
+    irap_noroslib::Writer w; w.f64(x); w.f64(y); w.f64(theta); return w.b;
   }
   static Pose2D deserialize(const std::vector<uint8_t>& b) {
-    noros::Reader r(b); Pose2D m; m.x = r.f64(); m.y = r.f64(); m.theta = r.f64(); return m;
+    irap_noroslib::Reader r(b); Pose2D m; m.x = r.f64(); m.y = r.f64(); m.theta = r.f64(); return m;
   }
 };
 
-// noros::Publisher<Pose2D> pub("/pose");  /  noros::Subscriber<Pose2D> sub("/pose", cb);
+// irap_noroslib::Publisher<Pose2D> pub("/pose");  /  irap_noroslib::Subscriber<Pose2D> sub("/pose", cb);
 ```
 
-Don't know the md5? Put anything and let noros discover the publisher's real one
+Don't know the md5? Put anything and let irap_noroslib discover the publisher's real one
 from the mismatch error (see the md5-discovery feature above). For a stamped
 message, make the first field a `Header` (Python: `std_msgs/Header header`; C++:
 compose `std_msgs::Header` in your codec) — see the `stamped_pub`/`stamped_sub`
@@ -346,7 +346,7 @@ examples.
 ## Examples
 
 Every example lives in `python/examples/` and/or `cpp/examples/`. Run them with a
-master up (a real `roscore`, or noros's own `nr_roscore`) and `ROS_MASTER_URI`
+master up (a real `roscore`, or irap_noroslib's own `nr_roscore`) and `ROS_MASTER_URI`
 set. Python: `python3 python/examples/<name>.py`. C++: build with CMake, then
 `./cpp/build/<name>`.
 
@@ -363,10 +363,10 @@ set. Python: `python3 python/examples/<name>.py`. C++: build with CMake, then
 | **udp_listener** | subscribe over **UDPROS** | ✅ | ✅ |
 | **nr_roscore** | run your own ROS master (roscore) | ✅ | ✅ |
 | **webcam_pub** | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` | ✅  | ✅  |
-| **image viewer** | subscribe those images and display them | ✅  `ros_image_viewer.py` (real rospy) | ✅  `image_viewer.cpp` (noros) |
+| **image viewer** | subscribe those images and display them | ✅  `ros_image_viewer.py` (real rospy) | ✅  `image_viewer.cpp` (irap_noroslib) |
 
  The webcam publisher and image viewer **require OpenCV** (`cv2` in Python,
-`<opencv2/opencv.hpp>` in C++). **OpenCV is not a dependency of noros** — the core
+`<opencv2/opencv.hpp>` in C++). **OpenCV is not a dependency of irap_noroslib** — the core
 library needs nothing beyond the standard library / a C++17 toolchain; only these
 optional demos use it. The C++ CMake build compiles them only if OpenCV is found.
 
@@ -374,7 +374,7 @@ Cross-check any of them with real ROS tools — `rostopic echo`/`pub`,
 `rosservice call`, `rosparam get`/`set`, and the `roscpp_tutorials` /
 `rospy_tutorials` / `actionlib_tutorials` packages.
 
-### End-to-end demo with noros only (no ROS installed)
+### End-to-end demo with irap_noroslib only (no ROS installed)
 
 ```bash
 # 1) your own master
@@ -387,9 +387,9 @@ python3 python/examples/talker.py
 
 ## Run your own ROS master — `nr_roscore`
 
-noros can also **be the roscore**, not just talk to one. `nr_roscore` is a
+irap_noroslib can also **be the roscore**, not just talk to one. `nr_roscore` is a
 standalone ROS master + parameter server (no ROS installed) that real ROS nodes
-(rospy/roscpp), `rostopic`/`rosservice`/`rosparam`, and noros nodes all register
+(rospy/roscpp), `rostopic`/`rosservice`/`rosparam`, and irap_noroslib nodes all register
 with. It implements the Master API (register/unregister publisher/subscriber/
 service, `lookupService`/`lookupNode`, `getSystemState`, `getPublishedTopics`, …),
 sends `publisherUpdate` to subscribers, and serves parameters.
@@ -414,7 +414,7 @@ masters handle **full (nested dict) parameter trees** and auto-start a `/rosout`
 → `/rosout_agg` aggregator (disable with `--no-rosout`). Verified with real ROS:
 two `rostopic pub`/`echo` nodes talk **through** nr_roscore,
 `rosservice`/`rosparam` (incl. nested dicts)/`rostopic list`/`info` work against
-it, and noros nodes use it as their master. Stress-tested: the 13-type topic
+it, and irap_noroslib nodes use it as their master. Stress-tested: the 13-type topic
 matrix (TCPROS+UDPROS), a 3,600-call service flood, concurrent parameter churn,
 and a 5,400-op registration storm all pass against both masters.
 
@@ -430,9 +430,9 @@ md5 handshake + wire bytes are checked by ROS itself):
 | **Python** | 64 built-ins + custom | 65 / 65 ✅ |
 | **C++** | 64 built-ins + custom | 65 / 65 ✅ |
 
-The custom message's md5 that noros computes (`90f5077…`) is **identical** to the
+The custom message's md5 that irap_noroslib computes (`90f5077…`) is **identical** to the
 one real ROS's `rosmsg md5` generates for the same `.msg`, and it flows both ways
-(noros → `rostopic echo`, and a real `rospy` publisher → noros subscriber) in
+(irap_noroslib → `rostopic echo`, and a real `rospy` publisher → irap_noroslib subscriber) in
 Python and C++.
 
 ## How it works
@@ -454,8 +454,8 @@ byte-for-byte compatible with real ROS (every md5sum matches `rosmsg`/`rossrv`).
 ## Layout
 
 ```
-python/    pip-installable package (noros/), examples/, tests/
-cpp/       single header (include/noros.hpp), examples/, dev/ (source of truth)
+python/    pip-installable package (irap_noroslib/), examples/, tests/
+cpp/       single header (include/irap_noroslib.hpp), examples/, dev/ (source of truth)
 LICENSE    MIT
 ```
 

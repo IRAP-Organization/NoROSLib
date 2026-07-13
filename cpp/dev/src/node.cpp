@@ -1,8 +1,8 @@
-// node.cpp — the noros node core: master registration, a slave XML-RPC server so
+// node.cpp — the irap_noroslib node core: master registration, a slave XML-RPC server so
 // the master + peers can reach us, TCPROS Publication (server) and Subscription
 // (client with md5 discovery), and the process-wide singleton behind the
 // roscpp-style front end in node.hpp.
-#include "noros/node.hpp"
+#include "irap_noroslib/node.hpp"
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -21,14 +21,14 @@
 #include <map>
 #include <mutex>
 
-#include "noros/net_util.hpp"
-#include "noros/tcpros.hpp"
-#include "noros/udpros.hpp"
-#include "noros/xmlrpc.hpp"
-#include "noros/xmlrpc_client.hpp"
-#include "noros/xmlrpc_server.hpp"
+#include "irap_noroslib/net_util.hpp"
+#include "irap_noroslib/tcpros.hpp"
+#include "irap_noroslib/udpros.hpp"
+#include "irap_noroslib/xmlrpc.hpp"
+#include "irap_noroslib/xmlrpc_client.hpp"
+#include "irap_noroslib/xmlrpc_server.hpp"
 
-namespace noros {
+namespace irap_noroslib {
 
 // --------------------------------------------------------------------------
 // logging + shutdown flag
@@ -37,7 +37,7 @@ namespace {
 std::atomic<bool> g_shutdown{false};
 
 void log(const char* level, const std::string& msg) {
-  int64_t sec = 0, nsec = 0; noros::wall_time(&sec, &nsec);
+  int64_t sec = 0, nsec = 0; irap_noroslib::wall_time(&sec, &nsec);
   std::printf("[%s] [%ld.%06ld]: %s\n", level, (long)sec, (long)(nsec / 1000),
               msg.c_str());
   std::fflush(stdout);
@@ -141,11 +141,11 @@ class Publication {
 
   void stop() {
     if (!running_.exchange(false)) return;
-    if (listen_fd_ >= 0) { ::shutdown(listen_fd_, SHUT_RDWR); noros::net_close(listen_fd_); listen_fd_ = -1; }
-    if (udp_fd_ >= 0) { noros::net_close(udp_fd_); udp_fd_ = -1; }
+    if (listen_fd_ >= 0) { ::shutdown(listen_fd_, SHUT_RDWR); irap_noroslib::net_close(listen_fd_); listen_fd_ = -1; }
+    if (udp_fd_ >= 0) { irap_noroslib::net_close(udp_fd_); udp_fd_ = -1; }
     if (accept_thread_.joinable()) accept_thread_.join();
     std::lock_guard<std::mutex> lk(mu_);
-    for (int fd : clients_) noros::net_close(fd);
+    for (int fd : clients_) irap_noroslib::net_close(fd);
     clients_.clear();
   }
 
@@ -191,7 +191,7 @@ class Publication {
     if (latch_) last_ = body;
     for (auto it = clients_.begin(); it != clients_.end();) {   // TCPROS
       if (send_framed(*it, body)) { ++it; }
-      else { noros::net_close(*it); it = clients_.erase(it); }
+      else { irap_noroslib::net_close(*it); it = clients_.erase(it); }
     }
     if (!udp_subs_.empty() && udp_fd_ >= 0) {                    // UDPROS
       // UDPROS carries the message as [4B LE len][body].
@@ -230,7 +230,7 @@ class Publication {
   // pushes framed messages.
   void serve(int fd) {
     TcprosHeader sub;
-    if (!read_tcpros_header(fd, &sub)) { noros::net_close(fd); return; }
+    if (!read_tcpros_header(fd, &sub)) { irap_noroslib::net_close(fd); return; }
     std::string want = sub.count("md5sum") ? sub.at("md5sum") : "*";
     if (want != "*" && want != md5_) {
       // Reply with the classic error naming OUR real type/md5, so the peer can
@@ -241,12 +241,12 @@ class Publication {
                      (sub.count("type") ? sub.at("type") : std::string("?")) + "/" + want +
                      "], but our version has [" + type_ + "/" + md5_ + "]. Dropping connection.";
       write_tcpros_header(fd, err);
-      noros::net_close(fd);
+      irap_noroslib::net_close(fd);
       return;
     }
     TcprosHeader resp = make_publisher_header(node_name_, topic_, md5_, type_, def_);
     resp["latching"] = latch_ ? "1" : "0";
-    if (!write_tcpros_header(fd, resp)) { noros::net_close(fd); return; }
+    if (!write_tcpros_header(fd, resp)) { irap_noroslib::net_close(fd); return; }
     {
       std::lock_guard<std::mutex> lk(mu_);
       clients_.push_back(fd);
@@ -255,13 +255,13 @@ class Publication {
     // block until the peer closes
     uint8_t scratch[256];
     while (running_.load()) {
-      ssize_t r = noros::net_recv(fd, scratch, sizeof(scratch), 0);
+      ssize_t r = irap_noroslib::net_recv(fd, scratch, sizeof(scratch), 0);
       if (r <= 0) break;
     }
     std::lock_guard<std::mutex> lk(mu_);
     for (auto it = clients_.begin(); it != clients_.end(); ++it)
       if (*it == fd) { clients_.erase(it); break; }
-    noros::net_close(fd);
+    irap_noroslib::net_close(fd);
   }
 
  public:
@@ -336,7 +336,7 @@ class Subscription {
     uint16_t recv_port = 0;
     int rfd = udp_socket("0.0.0.0", 0, &recv_port);
     if (rfd < 0) return false;
-    noros::net_set_rcvtimeo_ms(rfd, 200);  // 200ms so the recv loop can observe shutdown
+    irap_noroslib::net_set_rcvtimeo_ms(rfd, 200);  // 200ms so the recv loop can observe shutdown
     std::string md5 = md5_, type = type_;
     uint32_t conn_id = 0;
     bool negotiated = false;
@@ -371,22 +371,22 @@ class Subscription {
         type_ = type = real_type;
         continue;
       }
-      noros::net_close(rfd);
+      irap_noroslib::net_close(rfd);
       return false;
     }
-    if (!negotiated) { noros::net_close(rfd); return false; }
+    if (!negotiated) { irap_noroslib::net_close(rfd); return false; }
 
     UdprosReceiver rx;
     std::vector<uint8_t> buf(65536), body;
     while (running_.load() && !g_shutdown.load()) {
-      ssize_t r = noros::net_recv(rfd, buf.data(), buf.size(), 0);
+      ssize_t r = irap_noroslib::net_recv(rfd, buf.data(), buf.size(), 0);
       if (r <= 0) { if (!running_.load()) break; else continue; }
       UdprosHeader h;
       if (!UdprosHeader::decode(buf.data(), (size_t)r, &h)) continue;
       if (h.connection_id != conn_id) continue;
       if (rx.feed(buf.data(), (size_t)r, &body) && cb_) cb_(body);
     }
-    noros::net_close(rfd);
+    irap_noroslib::net_close(rfd);
     return true;
   }
 
@@ -402,20 +402,20 @@ class Subscription {
       int fd = tcp_connect(host, port);
       if (fd < 0) return false;
       TcprosHeader sub = make_subscriber_header(node_name_, topic_, md5, type);
-      if (!write_tcpros_header(fd, sub)) { noros::net_close(fd); return false; }
+      if (!write_tcpros_header(fd, sub)) { irap_noroslib::net_close(fd); return false; }
       TcprosHeader resp;
-      if (!read_tcpros_header(fd, &resp)) { noros::net_close(fd); return false; }
+      if (!read_tcpros_header(fd, &resp)) { irap_noroslib::net_close(fd); return false; }
       if (!resp.count("error")) {
         if (resp.count("md5sum") && resp.at("md5sum") != "*") {
           md5_ = resp.at("md5sum");
           type_ = resp.count("type") ? resp.at("type") : type_;
         }
         bool clean = receive_loop(fd);
-        noros::net_close(fd);
+        irap_noroslib::net_close(fd);
         return clean;
       }
       // md5 mismatch: learn the publisher's real type+md5 from the error text
-      noros::net_close(fd);
+      irap_noroslib::net_close(fd);
       std::string real_type, real_md5;
       if (!parse_type_md5_from_error(resp.at("error"), &real_type, &real_md5) ||
           real_md5.empty() || attempt == 1) {
@@ -469,7 +469,7 @@ class ServiceServer {
 
   void stop() {
     if (!running_.exchange(false)) return;
-    if (listen_fd_ >= 0) { ::shutdown(listen_fd_, SHUT_RDWR); noros::net_close(listen_fd_); listen_fd_ = -1; }
+    if (listen_fd_ >= 0) { ::shutdown(listen_fd_, SHUT_RDWR); irap_noroslib::net_close(listen_fd_); listen_fd_ = -1; }
     if (accept_thread_.joinable()) accept_thread_.join();
   }
 
@@ -488,14 +488,14 @@ class ServiceServer {
 
   void serve(int fd) {
     TcprosHeader hdr;
-    if (!read_tcpros_header(fd, &hdr)) { noros::net_close(fd); return; }
+    if (!read_tcpros_header(fd, &hdr)) { irap_noroslib::net_close(fd); return; }
     std::string want = hdr.count("md5sum") ? hdr.at("md5sum") : "*";
     if (want != "*" && want != md5_) {
       TcprosHeader err;
       err["error"] = "service " + name_ + " md5 mismatch: client wants [" + want +
                      "], server has [" + md5_ + "]";
       write_tcpros_header(fd, err);
-      noros::net_close(fd);
+      irap_noroslib::net_close(fd);
       return;
     }
     TcprosHeader resp;
@@ -504,8 +504,8 @@ class ServiceServer {
     resp["type"] = type_;
     resp["request_type"] = req_type_;
     resp["response_type"] = resp_type_;
-    if (!write_tcpros_header(fd, resp)) { noros::net_close(fd); return; }
-    if (hdr.count("probe") && hdr.at("probe") == "1") { noros::net_close(fd); return; }
+    if (!write_tcpros_header(fd, resp)) { irap_noroslib::net_close(fd); return; }
+    if (hdr.count("probe") && hdr.at("probe") == "1") { irap_noroslib::net_close(fd); return; }
     bool persistent = hdr.count("persistent") &&
                       (hdr.at("persistent") == "1" || hdr.at("persistent") == "true");
     std::vector<uint8_t> req_body, resp_body;
@@ -525,7 +525,7 @@ class ServiceServer {
       }
       if (!send_service_response(fd, ok, resp_body)) break;
     } while (persistent && running_.load());
-    noros::net_close(fd);
+    irap_noroslib::net_close(fd);
   }
 
   std::string name_, type_, md5_, req_type_, resp_type_, node_name_, uri_;
@@ -662,7 +662,7 @@ class Node {
     if (!parse_rosrpc(url, &host, &port)) { *err = "bad rosrpc uri: " + url; return false; }
     int fd = tcp_connect(host, port);
     if (fd < 0) { *err = "connect failed to " + url; return false; }
-    struct Guard { int f; ~Guard() { if (f >= 0) noros::net_close(f); } } guard{fd};
+    struct Guard { int f; ~Guard() { if (f >= 0) irap_noroslib::net_close(f); } } guard{fd};
     TcprosHeader h;
     h["callerid"] = name_;
     h["service"] = name;
@@ -781,7 +781,7 @@ void configure(const std::string& master_uri, const std::string& host) {
 
 void init_node(const std::string& name, const std::string& master_uri, const std::string& host) {
   if (g_node) return;
-  noros::net_startup();  // WSAStartup on Windows; no-op on POSIX
+  irap_noroslib::net_startup();  // WSAStartup on Windows; no-op on POSIX
   std::string uri = resolve_master_uri(master_uri);
   std::string h = resolve_host(host, uri);
   g_node.reset(new Node(name, uri, h));
@@ -887,12 +887,12 @@ void set_param(const std::string& key, const std::string& value) {
 bool has_param(const std::string& key) {
   std::string err;
   bool present = false;
-  return g_node && noros::has_param(g_node->master_uri(), g_node->name(), key, &present, &err)
+  return g_node && irap_noroslib::has_param(g_node->master_uri(), g_node->name(), key, &present, &err)
          && present;
 }
 bool delete_param(const std::string& key) {
   std::string err;
-  return g_node && noros::delete_param(g_node->master_uri(), g_node->name(), key, &err);
+  return g_node && irap_noroslib::delete_param(g_node->master_uri(), g_node->name(), key, &err);
 }
 
-}  // namespace noros
+}  // namespace irap_noroslib

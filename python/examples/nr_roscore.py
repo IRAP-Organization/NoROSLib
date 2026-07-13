@@ -10,7 +10,7 @@ Configuration (same knobs as a real roscore):
   * hostname : --host, else $ROS_HOSTNAME, else $ROS_IP, else the system hostname
 Then point nodes at it:  export ROS_MASTER_URI=http://<host>:<port>
 """
-from noros.roscore import main
+from irap_noroslib.roscore import main
 
 if __name__ == "__main__":
     main()
