@@ -106,14 +106,33 @@ One more thing, and it's the thing beginners get stuck on:
 
 ## Step 1 — Install NoROSLib
 
-**You do not need ROS installed. Not now, not later.** Pick your language.
+**You do not need ROS installed. Not now, not later.**
+
+First get the code. **This is currently the only way to install it** — NoROSLib is
+not on PyPI yet, so `pip install irap_noroslib` will *not* work:
+
+```bash
+git clone https://github.com/IRAP-Organization/NoROSLib.git
+cd NoROSLib
+```
+
+Now pick your language.
 
 ### Python
 
+**Install from the `python/` folder of the clone** — note the `cd`, and the `.`
+(a dot, meaning "this folder"):
+
 ```bash
-pip install irap_noroslib          # from PyPI (once published)
-pip install ./python               # from a clone of this repo
+cd python
+pip install .
 ```
+
+That's it. If `pip` isn't found, try `pip3 install .`, and if you want to edit the
+library and see your changes immediately, use `pip install -e .`.
+
+> Once NoROSLib is published to PyPI, `pip install irap_noroslib` will work from
+> anywhere and you can skip the clone. It is **not** published yet.
 
 **Dependencies: none.** It is pure **Python 3.6+ standard library** — it talks to
 ROS using only `xmlrpc`, `socket`, `socketserver`, `threading`, `struct` and
@@ -139,11 +158,12 @@ nr_rostopic --help         # rostopic, without ROS
 
 ### C++
 
-The whole library is **one file**:
+There is nothing to install. The whole library is **one file** inside the clone:
 [`cpp/include/irap_noroslib.hpp`](cpp/include/irap_noroslib.hpp). Copy it next to
-your code. That's the install.
+your code and you are done:
 
 ```bash
+# from inside the NoROSLib clone
 cp cpp/include/irap_noroslib.hpp   ~/my_project/
 ```
 
