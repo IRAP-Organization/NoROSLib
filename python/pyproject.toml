@@ -14,7 +14,7 @@ keywords = ["ros", "robotics", "tcpros", "udpros", "rospy", "xmlrpc", "pubsub"]
 dependencies = []
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Non-Commercial License",
+    "License :: Free for non-commercial use",
     "Operating System :: POSIX :: Linux",
     "Topic :: Scientific/Engineering",
 ]
