@@ -236,56 +236,78 @@ come back and check this terminal is still alive.
 
 ## Step 3 — Point your program at the master
 
-A node finds the master through **one environment variable**, `ROS_MASTER_URI`.
-This is standard ROS, and NoROSLib reads it automatically.
+A node needs to know **two** things, and you should set **both in your code**:
 
-```bash
-# Linux / macOS
-export ROS_MASTER_URI=http://localhost:11311        # master on this machine
-export ROS_MASTER_URI=http://192.168.1.50:11311     # master on a robot at .50
-```
+| | What it means |
+|---|---|
+| **master URI** | *Where the master is* — the phone book you register with. |
+| **hostname** | *How other nodes reach you back.* Remember [Step 0](#step-0--what-ros-is-in-60-seconds): data goes node-to-node, so peers must be able to open a connection **to you**. |
 
-```powershell
-# Windows PowerShell
-$env:ROS_MASTER_URI = "http://192.168.1.50:11311"
-```
+### Set them in your file — this is the way to do it
 
-Set it **in every terminal** you run a node from. Forgetting it is the #1
-beginner mistake — the node then quietly tries `http://localhost:11311` and finds
-nothing.
-
-**Prefer to do it in code?** Both languages let you, and it overrides the variable:
+Two lines, before `init_node()`. Everything on one machine? Both are `localhost`:
 
 ```python
-irap_noroslib.set_master_uri("http://192.168.1.50:11311")   # before init_node()
+import irap_noroslib
+
+irap_noroslib.set_master_uri("http://localhost:11311")   # where the master is
+irap_noroslib.set_hostname("localhost")                  # how peers reach me
+irap_noroslib.init_node("my_node")                       # now join the graph
 ```
 
 ```cpp
-irap_noroslib::set_master_uri("http://192.168.1.50:11311"); // before init_node()
+#include "irap_noroslib.hpp"
+
+irap_noroslib::set_master_uri("http://localhost:11311"); // where the master is
+irap_noroslib::set_hostname("localhost");                // how peers reach me
+irap_noroslib::init_node("my_node");                     // now join the graph
 ```
 
-### Check for a leftover `ROS_IP` first
+**Why in the file and not the shell?** Because what you set in code **wins over the
+environment**, and the environment is where things go wrong. Any machine that has
+ever had ROS on it tends to carry a stale `ROS_MASTER_URI`, `ROS_IP` or
+`ROS_HOSTNAME` in its shell profile, left over from some other robot. Your node
+silently inherits it, advertises an address nobody can reach, and then **nothing
+connects and nothing tells you why** — no error, no message, just silence. Setting
+these two values in the file makes your program immune to that, and it behaves the
+same on every machine you copy it to.
 
-There is a second variable, `ROS_IP` (and its sibling `ROS_HOSTNAME`), that says
-**how other nodes reach you**. You don't need it when everything runs on one
-machine — *unless your shell already sets it*, which is common on any machine that
-has touched ROS before:
+Precedence, in both languages — the first one that exists wins:
+
+```
+init_node(name, master_uri, host)  >  set_master_uri() / set_hostname()  >  $ROS_MASTER_URI / $ROS_IP  >  $ROS_HOSTNAME  >  auto-detect
+```
+
+So you can also pass them straight to `init_node`, which is the same thing in one
+line:
+
+```python
+irap_noroslib.init_node("my_node", "http://localhost:11311", "localhost")
+```
+
+```cpp
+irap_noroslib::init_node("my_node", "http://localhost:11311", "localhost");
+```
+
+### The environment variables — the fallback
+
+Standard ROS uses environment variables, and NoROSLib reads them too, so this
+works if you leave the two lines out:
 
 ```bash
-echo "$ROS_IP $ROS_HOSTNAME"      # both empty? good, skip this.
+export ROS_MASTER_URI=http://localhost:11311   # where the master is
+export ROS_IP=localhost                        # how peers reach you
 ```
 
-If it prints an address, that address is what every node you start will advertise —
-and if it's stale, wrong, or firewalled, **nothing will connect and nothing will
-say why**. For a tutorial on one machine, force it to loopback:
+But you must repeat it **in every terminal**, and a leftover value from an old
+setup silently overrides your intent. Use it for quick one-off shell commands
+(`nr_rostopic` reads `$ROS_MASTER_URI` too); set it in the **file** for anything
+you intend to keep. If you do rely on the shell, check what is already there
+before you start:
 
 ```bash
-export ROS_IP=localhost           # $ROS_IP wins over $ROS_HOSTNAME, as in real ROS
+echo "$ROS_MASTER_URI $ROS_IP $ROS_HOSTNAME"    # all empty? then nothing can surprise you
 ```
-
-(This is not hypothetical: it is the single most common reason the steps below
-"do nothing".) When you move to a real robot,
-[Step 13](#step-13--connect-to-a-real-robot-on-the-network) sets it to your real IP.
 
 ---
 
@@ -330,6 +352,9 @@ Save as `my_talker.py`:
 import irap_noroslib
 from irap_noroslib.std_msgs.msg import String    # a message type: plain text
 
+irap_noroslib.set_master_uri("http://localhost:11311")  # Step 3: where the master is
+irap_noroslib.set_hostname("localhost")                # Step 3: how peers reach me
+
 irap_noroslib.init_node("my_talker")             # join the graph, pick a node name
 pub = irap_noroslib.Publisher("/chatter", String)  # I will send String on /chatter
 rate = irap_noroslib.Rate(10)                    # 10 times per second
@@ -354,6 +379,9 @@ Save as `my_talker.cpp`:
 #include "irap_noroslib.hpp"
 
 int main() {
+  irap_noroslib::set_master_uri("http://localhost:11311");  // Step 3: where the master is
+  irap_noroslib::set_hostname("localhost");                 // Step 3: how peers reach me
+
   irap_noroslib::init_node("my_talker");              // join the graph
   irap_noroslib::Publisher<std_msgs::String> pub("/chatter");
   irap_noroslib::Rate rate(10);                       // 10 times per second
@@ -397,6 +425,9 @@ from irap_noroslib.std_msgs.msg import String
 def on_message(m):                               # called for every message
     irap_noroslib.loginfo("I heard: " + m.data)
 
+irap_noroslib.set_master_uri("http://localhost:11311")  # Step 3: where the master is
+irap_noroslib.set_hostname("localhost")                # Step 3: how peers reach me
+
 irap_noroslib.init_node("my_listener")
 irap_noroslib.Subscriber("/chatter", String, on_message)
 irap_noroslib.spin()                             # wait for messages forever
@@ -415,6 +446,9 @@ Save as `my_listener.cpp`:
 #include "irap_noroslib.hpp"
 
 int main() {
+  irap_noroslib::set_master_uri("http://localhost:11311");  // Step 3: where the master is
+  irap_noroslib::set_hostname("localhost");                 // Step 3: how peers reach me
+
   irap_noroslib::init_node("my_listener");
   irap_noroslib::Subscriber<std_msgs::String> sub("/chatter",
       [](const std_msgs::String& m) {                     // called per message
@@ -758,38 +792,48 @@ Full example: `params_example` in both languages.
 
 ## Step 13 — Connect to a real robot on the network
 
-Everything so far ran on one machine. Now the master is **on the robot** and your
-code is **on your laptop**. Two variables, and one of them is the thing that trips
-everybody.
+Everything so far ran on one machine, so both values were `localhost`. Now the
+master is **on the robot** and your code is **on your laptop**. Change the same two
+lines from [Step 3](#step-3--point-your-program-at-the-master) — the master URI now
+points at the robot, and the hostname becomes **your laptop's real IP**:
 
-```bash
-export ROS_MASTER_URI=http://192.168.1.50:11311   # where the ROBOT's master is
-export ROS_IP=192.168.1.77                        # YOUR laptop's IP on that network
+```python
+irap_noroslib.set_master_uri("http://192.168.1.50:11311")  # the ROBOT's master
+irap_noroslib.set_hostname("192.168.1.77")                 # YOUR laptop's IP
+irap_noroslib.init_node("my_node")
 ```
 
-**Why `ROS_IP` matters.** Remember from [Step 0](#step-0--what-ros-is-in-60-seconds):
+```cpp
+irap_noroslib::set_master_uri("http://192.168.1.50:11311"); // the ROBOT's master
+irap_noroslib::set_hostname("192.168.1.77");                // YOUR laptop's IP
+irap_noroslib::init_node("my_node");
+```
+
+**Why the hostname matters.** Remember from [Step 0](#step-0--what-ros-is-in-60-seconds):
 the master only hands out addresses — the actual data goes **node to node,
 directly**. So when you subscribe, the robot's publisher has to **open a connection
-back to your laptop**, and it uses the address you registered with. If you don't
-set `ROS_IP`, NoROSLib registers your machine's hostname — and the robot usually
-**cannot resolve** `my-laptop.local`. Symptom: the topic appears in
-`nr_rostopic list`, but **no messages ever arrive.** Set `ROS_IP` to the IP the
-robot can actually reach you on, and it works.
+back to your laptop**, and it uses the address you registered with. Leave it
+unset and NoROSLib falls back to your machine's hostname — which the robot usually
+**cannot resolve** (`my-laptop.local`), or to a stale `$ROS_IP` from your shell.
+Symptom: the topic appears in `nr_rostopic list`, but **no messages ever arrive.**
+Give it the IP the robot can actually reach you on, and it works.
 
 Find your IP with `ip addr` (Linux/macOS) or `ipconfig` (Windows) — it's the one
 on the same subnet as the robot, here `192.168.1.x`.
 
-Checklist, in order — do it once and it stays done:
+Checklist, in order:
 
 1. **Ping both ways.** `ping 192.168.1.50` from the laptop, and `ping 192.168.1.77`
-   from the robot. **Both must work.** One-way is exactly the failure `ROS_IP`
-   causes, so prove it now.
-2. **`export ROS_MASTER_URI=http://<robot-ip>:11311`** on the laptop.
-3. **`export ROS_IP=<your-laptop-ip>`** on the laptop.
-4. **`nr_rostopic list`** — you should now see the robot's real topics.
-5. **`nr_rostopic echo /some_topic`** — data should flow. If step 4 works but this
-   one hangs, it is `ROS_IP` or a **firewall** blocking the robot from connecting
-   back to you.
+   from the robot. **Both must work.** One-way is exactly the failure an
+   unreachable hostname causes, so prove it now.
+2. **`set_master_uri("http://<robot-ip>:11311")`** in your file.
+3. **`set_hostname("<your-laptop-ip>")`** in your file.
+4. **`nr_rostopic list`** — you should see the robot's real topics. (This is a
+   shell command, so give it the master on the command line:
+   `nr_rostopic --master 192.168.1.50 list`.)
+5. **`nr_rostopic --master 192.168.1.50 echo /some_topic`** — data should flow. If
+   step 4 works but this one hangs, it is the hostname or a **firewall** blocking
+   the robot from connecting back to you.
 
 Firewalls: ROS uses port **11311** for the master and **random high ports** for the
 node-to-node connections. On a trusted lab network, allow the robot's IP through
@@ -805,8 +849,8 @@ Nothing needs to be installed on the robot. It sees a normal ROS node.
 |---|---|---|
 | `connection refused` on any command | No master at that address. | Is `nr_roscore`/`roscore` running? Is `ROS_MASTER_URI` right? ([Step 2](#step-2--get-a-ros-master-running)) |
 | `nr_rostopic list` shows only `/rosout`, `/rosout_agg` | You're talking to the master fine, but no nodes are publishing. | Start the talker. If it *is* running, it's pointed at a **different** master — check `ROS_MASTER_URI` in **that** terminal. |
-| Topic is listed, but `echo` prints **nothing** | The publisher can't connect **back** to you. | Set **`ROS_IP`** to your machine's IP; open the firewall. ([Step 13](#step-13--connect-to-a-real-robot-on-the-network)) |
-| Everything hangs / a service call **times out**, even with everything on one machine | Your shell has a **leftover `ROS_IP`** (or `ROS_HOSTNAME`) from an old ROS setup. Your nodes advertise *that* address, and if it's stale or firewalled — even though it's your own LAN IP — peers can't reach them. | `echo $ROS_IP`. For local work: `export ROS_IP=localhost`. ([Step 3](#step-3--point-your-program-at-the-master)) |
+| Topic is listed, but `echo` prints **nothing** | The publisher can't connect **back** to you. | `set_hostname("<your IP>")` in your file; open the firewall. ([Step 13](#step-13--connect-to-a-real-robot-on-the-network)) |
+| Everything hangs / a service call **times out**, even with everything on one machine | Your shell has a **leftover `ROS_IP`/`ROS_HOSTNAME`/`ROS_MASTER_URI`** from an old ROS setup, and your node silently inherited it — so it advertises an address peers cannot reach. | `set_master_uri(...)` + `set_hostname("localhost")` **in the file** — code beats the environment. ([Step 3](#step-3--point-your-program-at-the-master)) |
 | `Cannot load message class for [pkg/Type]` from **real** `rostopic` | Real ROS needs that type *built* in a catkin package. Not your bug. | Use `nr_rostopic echo` — it decodes types it has no file for. ([here](#echo-does-something-real-rostopic-cannot)) |
 | `unknown message type "pkg/Thing"` from NoROSLib | A nested custom type whose `.msg` you didn't load. | `load_msg_file()` that file too — the error names it. ([Step 9](#step-9--use-your-robots-own-message-type)) |
 | md5sum mismatch, publisher **drops** you | Your subscriber's type doesn't match the publisher's. | Nothing to do — NoROSLib reads the real md5 out of the error and reconnects. ([md5 discovery](#automatic-md5-discovery)) |
