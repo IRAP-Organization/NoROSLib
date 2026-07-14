@@ -10,7 +10,7 @@
 //   ROS_MASTER_URI=http://host:11311 ROS_HOSTNAME=host ./nr_roscore
 //
 // Config: port  = --port | port in $ROS_MASTER_URI | 11311
-//         host  = --host | $ROS_HOSTNAME | $ROS_IP | system hostname
+//         host  = --host | a concrete --bind | $ROS_HOSTNAME | $ROS_IP | system hostname
 //
 // NOTE: parameters are scalar/array only (the Python nr_roscore does full dict
 // trees). Enough for topics, services, actions and typical scalar params.
@@ -419,6 +419,10 @@ int main(int argc, char** argv) {
     }
   }
   if (port == 0) port = 11311;
+  // `nr_roscore --bind 127.0.0.1` should advertise 127.0.0.1, not the system
+  // hostname -- a master reachable only on loopback must not tell nodes to use a
+  // name that resolves elsewhere. An explicit --host still wins.
+  if (host.empty() && bind != "0.0.0.0" && bind != "::" && !bind.empty()) host = bind;
   if (host.empty()) {
     if (const char* h = std::getenv("ROS_HOSTNAME")) host = h;
     else if (const char* h2 = std::getenv("ROS_IP")) host = h2;
