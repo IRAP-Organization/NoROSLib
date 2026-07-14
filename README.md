@@ -536,6 +536,9 @@ Use one exactly like `String`. Driving a robot, for instance, is a
 import irap_noroslib
 from irap_noroslib.geometry_msgs.msg import Twist
 
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
+
 irap_noroslib.init_node("driver")
 pub = irap_noroslib.Publisher("/cmd_vel", Twist)
 
@@ -550,6 +553,9 @@ pub.publish(cmd)
 #include "irap_noroslib.hpp"
 
 int main() {
+  irap_noroslib::set_master_uri("http://localhost:11311");   // Step 3
+  irap_noroslib::set_hostname("localhost");
+
   irap_noroslib::init_node("driver");
   irap_noroslib::Publisher<geometry_msgs::Twist> pub("/cmd_vel");
 
@@ -593,6 +599,9 @@ PKG  = "my_robot_msgs"            # the ROS package they came from
 Reading    = load_msg_file(f"{MSGS}/Reading.msg",    PKG)
 CustomData = load_msg_file(f"{MSGS}/CustomData.msg", PKG)
 
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
+
 irap_noroslib.init_node("my_node")
 irap_noroslib.Subscriber("/data", CustomData, lambda m: print(m.id, m.label))
 irap_noroslib.spin()
@@ -609,6 +618,9 @@ const std::string PKG  = "my_robot_msgs";
 int main() {
   MsgType Reading    = load_msg_file(MSGS + "/Reading.msg",    PKG);
   MsgType CustomData = load_msg_file(MSGS + "/CustomData.msg", PKG);
+
+  set_master_uri("http://localhost:11311");     // Step 3
+  set_hostname("localhost");
 
   init_node("my_node");
   DynamicSubscriber sub("/data", CustomData, [](const DynamicMessage& m) {
@@ -669,6 +681,9 @@ AddTwoInts = define_service("rospy_tutorials/AddTwoInts",
 def handle(req):                                    # called per request
     return AddTwoInts.Response(sum=req.a + req.b)
 
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
+
 irap_noroslib.init_node("add_server")
 irap_noroslib.Service("/add_two_ints", AddTwoInts, handle)
 irap_noroslib.spin()
@@ -677,6 +692,9 @@ irap_noroslib.spin()
 **The client** — asks, and waits for the answer:
 
 ```python
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
+
 irap_noroslib.init_node("add_client")
 irap_noroslib.wait_for_service("/add_two_ints", timeout=5.0)   # let the server come up
 
@@ -692,6 +710,10 @@ print("sum =", resp.sum)                            # sum = 7
 
 ```cpp
 // server
+irap_noroslib::set_master_uri("http://localhost:11311");   // Step 3
+irap_noroslib::set_hostname("localhost");
+irap_noroslib::init_node("add_server");
+
 irap_noroslib::ServiceServer<AddTwoInts> srv("/add_two_ints",
     [](const AddTwoInts::Request& req, AddTwoInts::Response& resp) {
       resp.sum = req.a + req.b;
@@ -700,6 +722,10 @@ irap_noroslib::ServiceServer<AddTwoInts> srv("/add_two_ints",
 irap_noroslib::spin();
 
 // client
+irap_noroslib::set_master_uri("http://localhost:11311");   // Step 3
+irap_noroslib::set_hostname("localhost");
+irap_noroslib::init_node("add_client");
+
 irap_noroslib::ServiceClient<AddTwoInts> client("/add_two_ints");
 AddTwoInts::Request req;  req.a = 3;  req.b = 4;
 AddTwoInts::Response resp;
@@ -758,6 +784,10 @@ Parameters are **shared settings** kept on the master — a robot's name, a spee
 limit, a camera resolution. Any node can read or write them.
 
 ```python
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
+irap_noroslib.init_node("params")                        # parameters live on the master
+
 irap_noroslib.set_param("/robot_name", "turtle")
 irap_noroslib.set_param("/max_speed", 1.5)
 
@@ -769,6 +799,10 @@ if irap_noroslib.has_param("/max_speed"):
 ```
 
 ```cpp
+irap_noroslib::set_master_uri("http://localhost:11311");   // Step 3
+irap_noroslib::set_hostname("localhost");
+irap_noroslib::init_node("params");            // parameters live on the master
+
 irap_noroslib::set_param("/robot_name", "turtle");
 irap_noroslib::set_param("/max_speed", 1.5);
 
@@ -1011,6 +1045,8 @@ Reading    = load_msg_file(f"{MSGS}/Reading.msg",    PKG)
 CustomData = load_msg_file(f"{MSGS}/CustomData.msg", PKG)
 GetStatus  = load_srv_file(f"{MSGS}/GetStatus.srv",  PKG)
 
+irap_noroslib.set_master_uri("http://localhost:11311")   # Step 3
+irap_noroslib.set_hostname("localhost")
 irap_noroslib.init_node("my_node")
 
 # publish it
@@ -1037,6 +1073,8 @@ MsgType Reading    = load_msg_file(MSGS + "/Reading.msg",    PKG);
 MsgType CustomData = load_msg_file(MSGS + "/CustomData.msg", PKG);
 SrvType GetStatus  = load_srv_file(MSGS + "/GetStatus.srv",  PKG);
 
+set_master_uri("http://localhost:11311");     // Step 3
+set_hostname("localhost");
 init_node("my_node");
 
 // publish it -- fields by name, nest with a dot, index with brackets
