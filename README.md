@@ -1234,10 +1234,70 @@ nr_rostopic echo [-n N] [--noarr] /chatter           # decode and print
 nr_rostopic hz     /chatter                          # publish rate
 nr_rostopic bw     /chatter                          # bandwidth
 nr_rostopic pub [-r HZ | -1] /chatter std_msgs/String "data: hi"
+
+# remember the master here, once (see below)
+nr_rostopic --set_ros_master_uri http://HOST:11311 --set_ros_hostname YOUR_IP
 ```
 
-**Pointing it at a master.** `--master` takes a host, an IP, a `host:port`, or a full
-URI, and `--port` sets the port — so these all mean the same thing:
+### Tell it the master **once** — `master.yaml`
+
+Rather than repeating `--master` on every command, set it one time. `nr_rostopic`
+writes what you give it to a **`master.yaml` in the current directory** and uses it
+from then on:
+
+```bash
+nr_rostopic --set_ros_master_uri http://192.168.1.50:11311 \
+            --set_ros_hostname   192.168.1.77
+```
+
+```
+saved to ./master.yaml
+  ros_master_uri: http://192.168.1.50:11311
+  ros_hostname:   192.168.1.77
+
+nr_rostopic in this directory now uses these -- no flags needed.
+```
+
+From now on, in that directory, just say what you want:
+
+```bash
+nr_rostopic list                    # no --master, no exports
+nr_rostopic echo /chatter
+```
+
+The file is two plain lines, so you can also write it by hand or commit it with a
+project:
+
+```yaml
+# master.yaml
+ros_master_uri: http://192.168.1.50:11311
+ros_hostname: 192.168.1.77
+```
+
+`ros_hostname` is the **how peers reach you** value from
+[Step 3](#step-3--point-your-program-at-the-master) — set it to your own IP when
+the master is on a robot.
+
+**It deliberately beats the environment.** A stale `$ROS_MASTER_URI` or `$ROS_IP`
+left in your shell by some other ROS setup must not silently override what you
+saved. Full precedence:
+
+```
+--master / --port / --host   (this one command)
+        v
+./master.yaml                (what you saved here)
+        v
+$ROS_MASTER_URI / $ROS_IP / $ROS_HOSTNAME
+        v
+http://localhost:11311
+```
+
+Delete `master.yaml` to forget it. Since it lives in the **current directory**, each
+project can have its own robot, and `cd`-ing elsewhere gets you a clean slate.
+
+**Or point it at a master for one command.** `--master` takes a host, an IP, a
+`host:port`, or a full URI, and `--port` sets the port — so these all mean the same
+thing:
 
 ```bash
 nr_rostopic --master 127.0.0.1 --port 11311 echo /chatter
@@ -1246,8 +1306,17 @@ nr_rostopic --master http://127.0.0.1:11311 echo /chatter
 nr_rostopic --master 127.0.0.1              echo /chatter   # port defaults to 11311
 ```
 
-With nothing given it uses `$ROS_MASTER_URI`, else `http://localhost:11311`. The C++
-`nr_rostopic` takes the same flags.
+If it cannot reach the master, it tells you **which** master and **where that came
+from**, which is usually the whole answer:
+
+```
+nr_rostopic: cannot reach the ROS master at http://this-does-not-exist:9999
+             (from $ROS_MASTER_URI)
+             [Errno -3] Temporary failure in name resolution
+```
+
+The **C++ `nr_rostopic` takes the same flags and shares the same `master.yaml`** —
+either one can write the file and the other reads it.
 
 ### `echo` does something real `rostopic` cannot
 

@@ -20,6 +20,7 @@ Point it at a master with $ROS_MASTER_URI, or `--master http://host:11311`.
 """
 import argparse
 import os
+import socket
 import sys
 import threading
 import time
@@ -74,8 +75,68 @@ def _scalar(v, noarr=False):
     return str(v)
 
 
+# ----------------------------------------------------- remembered settings ----
+# nr_rostopic remembers the master URI and hostname in a master.yaml in the
+# CURRENT DIRECTORY, so you set them once and every later command just works:
+#
+#     nr_rostopic --set_ros_master_uri http://192.168.1.50:11311 \
+#                 --set_ros_hostname   192.168.1.77
+#     nr_rostopic list            # no flags needed any more
+#
+# The file WINS over $ROS_MASTER_URI / $ROS_IP / $ROS_HOSTNAME: a stale env var
+# left in the shell by some other ROS setup must not silently override what you
+# deliberately saved. An explicit --master/--port/--host still beats the file.
+MASTER_YAML = "master.yaml"
+
+
+def master_yaml_path():
+    """The remembered-settings file: ./master.yaml, in the current directory."""
+    return os.path.join(os.getcwd(), MASTER_YAML)
+
+
+def load_master_yaml(path=None):
+    """Read ./master.yaml. Returns {} if it isn't there or can't be read.
+
+    Deliberately a 5-line parser, not PyYAML: irap_noroslib has zero dependencies,
+    and this file only ever holds two `key: value` lines.
+    """
+    path = path or master_yaml_path()
+    out = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or ":" not in line:
+                    continue
+                key, _, value = line.partition(":")
+                value = value.strip().strip('"').strip("'")
+                if value:
+                    out[key.strip()] = value
+    except (IOError, OSError):
+        return {}
+    return out
+
+
+def save_master_yaml(master_uri=None, hostname=None, path=None):
+    """Write ./master.yaml, keeping whichever value wasn't given this time."""
+    path = path or master_yaml_path()
+    cur = load_master_yaml(path)
+    if master_uri:
+        cur["ros_master_uri"] = master_uri
+    if hostname:
+        cur["ros_hostname"] = hostname
+    with open(path, "w") as f:
+        f.write("# nr_rostopic remembered settings. Delete this file to forget them.\n")
+        f.write("# These win over $ROS_MASTER_URI / $ROS_IP / $ROS_HOSTNAME.\n")
+        if "ros_master_uri" in cur:
+            f.write("ros_master_uri: %s\n" % cur["ros_master_uri"])
+        if "ros_hostname" in cur:
+            f.write("ros_hostname: %s\n" % cur["ros_hostname"])
+    return path, cur
+
+
 # ------------------------------------------------------------ master glue ----
-def resolve_master(master=None, port=None):
+def resolve_master(master=None, port=None, saved=None):
     """Build the master URI from whatever the user gave us.
 
     `master` may be a full URI, a host:port, or just a host/IP -- so all of these
@@ -86,9 +147,11 @@ def resolve_master(master=None, port=None):
         --master 127.0.0.1 --port 11311
         --master 127.0.0.1                  (port defaults to 11311)
 
-    With nothing given, $ROS_MASTER_URI is used, then http://localhost:11311.
+    Precedence: --master/--port > ./master.yaml > $ROS_MASTER_URI > localhost.
     """
-    uri = master or os.environ.get("ROS_MASTER_URI") or "http://localhost:11311"
+    saved = load_master_yaml() if saved is None else saved
+    uri = (master or saved.get("ros_master_uri")
+           or os.environ.get("ROS_MASTER_URI") or "http://localhost:11311")
     if "://" not in uri:
         uri = "http://" + uri
     scheme, _, rest = uri.partition("://")
@@ -416,10 +479,16 @@ def main(argv=None):
                     "even a custom type you have no .msg file for.")
     p.add_argument("--master", metavar="HOST|URI",
                    help="master host, IP, host:port or full URI "
-                        "(default: $ROS_MASTER_URI, else localhost)")
+                        "(default: ./master.yaml, then $ROS_MASTER_URI, else localhost)")
     p.add_argument("--port", type=int,
                    help="master port (default: 11311, or the port in --master)")
-    p.add_argument("--host", help="our hostname (default: $ROS_HOSTNAME / $ROS_IP)")
+    p.add_argument("--host",
+                   help="our hostname -- how other nodes reach us "
+                        "(default: ./master.yaml, then $ROS_HOSTNAME / $ROS_IP)")
+    p.add_argument("--set_ros_master_uri", metavar="URI",
+                   help="remember this master URI in ./master.yaml and exit")
+    p.add_argument("--set_ros_hostname", metavar="HOST",
+                   help="remember this hostname in ./master.yaml and exit")
     sub = p.add_subparsers(dest="cmd")
 
     s = sub.add_parser("list", help="list topics")
@@ -461,20 +530,59 @@ def main(argv=None):
     s.set_defaults(func=cmd_pub)
 
     args = p.parse_args(argv)
+
+    # --set_ros_master_uri / --set_ros_hostname: remember, then exit.
+    if args.set_ros_master_uri or args.set_ros_hostname:
+        uri = args.set_ros_master_uri
+        if uri:
+            uri = resolve_master(uri, args.port, saved={})   # normalise to a full URI
+        path, cur = save_master_yaml(uri, args.set_ros_hostname)
+        print("saved to %s" % path)
+        for key in ("ros_master_uri", "ros_hostname"):
+            if key in cur:
+                print("  %-15s %s" % (key + ":", cur[key]))
+        print("\nnr_rostopic in this directory now uses these -- no flags needed.")
+        return 0
+
     if not args.cmd:
         p.print_help()
         return 0
 
+    saved = load_master_yaml()
+    uri = resolve_master(args.master, args.port, saved)
+
+    # where did that master come from? -- so a failure can say so.
+    if args.master:
+        origin = "--master"
+    elif saved.get("ros_master_uri"):
+        origin = "./master.yaml"
+    elif os.environ.get("ROS_MASTER_URI"):
+        origin = "$ROS_MASTER_URI"
+    else:
+        origin = "the default"
+
     # a CLI prints its data, not the library's chatter (warnings still show)
     irap_noroslib.set_log_level("warn")
-    irap_noroslib.set_master_uri(resolve_master(args.master, args.port))
+    irap_noroslib.set_master_uri(uri)
     irap_noroslib.set_hostname(
-        args.host or os.environ.get("ROS_HOSTNAME")
+        args.host or saved.get("ros_hostname") or os.environ.get("ROS_HOSTNAME")
         or os.environ.get("ROS_IP") or "localhost")
     try:
         return args.func(args)
     except KeyboardInterrupt:
         return 0
+    except (socket.gaierror, ConnectionError, OSError) as e:
+        # The master is unreachable. Say which master, and where it came from --
+        # a stale $ROS_MASTER_URI is the usual culprit, and a traceback hides that.
+        print("nr_rostopic: cannot reach the ROS master at %s\n"
+              "             (from %s)\n"
+              "             %s\n\n"
+              "Is a master running? Start one with:  nr_roscore\n"
+              "Point at a different one, and remember it here:\n"
+              "    nr_rostopic --set_ros_master_uri http://HOST:11311 "
+              "--set_ros_hostname YOUR_IP"
+              % (uri, origin, e), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

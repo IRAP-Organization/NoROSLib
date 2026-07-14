@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <mutex>
 #include <string>
@@ -33,6 +34,7 @@
 using namespace irap_noroslib;
 
 static std::string g_master = "http://localhost:11311";
+static std::string g_master_origin = "the default";   // where g_master came from
 static const char* CALLER = "/nr_rostopic";
 
 // ------------------------------------------------------------------ output ---
@@ -96,7 +98,17 @@ static std::string fmt_value(const Value& v, int indent, bool noarr) {
 static bool topic_types(std::vector<std::pair<std::string, std::string>>* out) {
   std::string err;
   if (!get_topic_types(g_master, CALLER, out, &err)) {
-    fprintf(stderr, "cannot reach the master at %s: %s\n", g_master.c_str(), err.c_str());
+    // Say which master, and where it came from -- a stale $ROS_MASTER_URI is the
+    // usual culprit, and "cannot reach the master" alone hides that.
+    fprintf(stderr,
+            "nr_rostopic: cannot reach the ROS master at %s\n"
+            "             (from %s)\n"
+            "             %s\n\n"
+            "Is a master running? Start one with:  nr_roscore\n"
+            "Point at a different one, and remember it here:\n"
+            "    nr_rostopic --set_ros_master_uri http://HOST:11311 "
+            "--set_ros_hostname YOUR_IP\n",
+            g_master.c_str(), g_master_origin.c_str(), err.c_str());
     return false;
   }
   return true;
@@ -393,8 +405,65 @@ static void usage() {
       "  nr_rostopic bw     TOPIC\n"
       "  nr_rostopic pub [-r HZ | -1] TOPIC TYPE \"data\"\n\n"
       "  --master HOST  master host, IP, host:port or full URI\n"
-      "  --port N       master port (default: 11311)\n\n"
+      "  --port N       master port (default: 11311)\n"
+      "  --host HOST    our hostname -- how other nodes reach us\n\n"
+      "Remember the master once, in ./master.yaml:\n"
+      "  nr_rostopic --set_ros_master_uri http://HOST:11311 --set_ros_hostname YOUR_IP\n"
+      "  nr_rostopic list          # no flags needed any more\n\n"
       "`echo` decodes ANY topic -- even a custom type you have no .msg file for.\n");
+}
+
+// ------------------------------------------------- remembered settings ----
+// nr_rostopic remembers the master URI and hostname in a master.yaml in the
+// CURRENT DIRECTORY, so you set them once and every later command just works.
+// The file WINS over $ROS_MASTER_URI / $ROS_IP / $ROS_HOSTNAME: a stale env var
+// from some other ROS setup must not silently override what you saved. An
+// explicit --master/--port/--host still beats the file.
+static const char* MASTER_YAML = "master.yaml";
+
+// A 10-line parser, not a YAML library: this file only holds two key: value lines.
+static void load_master_yaml(std::string* uri, std::string* host) {
+  std::ifstream f(MASTER_YAML);
+  if (!f) return;
+  std::string line;
+  while (std::getline(f, line)) {
+    size_t b = line.find_first_not_of(" \t");
+    if (b == std::string::npos || line[b] == '#') continue;
+    size_t colon = line.find(':', b);
+    if (colon == std::string::npos) continue;
+    std::string key = line.substr(b, colon - b);
+    std::string val = line.substr(colon + 1);
+    size_t vb = val.find_first_not_of(" \t");
+    if (vb == std::string::npos) continue;
+    size_t ve = val.find_last_not_of(" \t\r\n");
+    val = val.substr(vb, ve - vb + 1);
+    if (val.size() >= 2 && (val.front() == '"' || val.front() == '\'') && val.back() == val.front())
+      val = val.substr(1, val.size() - 2);
+    if (key == "ros_master_uri") *uri = val;
+    else if (key == "ros_hostname") *host = val;
+  }
+}
+
+static bool save_master_yaml(const std::string& uri, const std::string& host) {
+  std::string cur_uri, cur_host;
+  load_master_yaml(&cur_uri, &cur_host);          // keep what wasn't given now
+  if (!uri.empty()) cur_uri = uri;
+  if (!host.empty()) cur_host = host;
+  std::ofstream f(MASTER_YAML);
+  if (!f) {
+    fprintf(stderr, "nr_rostopic: cannot write %s here\n", MASTER_YAML);
+    return false;
+  }
+  f << "# nr_rostopic remembered settings. Delete this file to forget them.\n"
+    << "# These win over $ROS_MASTER_URI / $ROS_IP / $ROS_HOSTNAME.\n";
+  if (!cur_uri.empty()) f << "ros_master_uri: " << cur_uri << "\n";
+  if (!cur_host.empty()) f << "ros_hostname: " << cur_host << "\n";
+  f.close();
+  printf("saved to ./%s\n", MASTER_YAML);
+  if (!cur_uri.empty()) printf("  ros_master_uri: %s\n", cur_uri.c_str());
+  if (!cur_host.empty()) printf("  ros_hostname:   %s\n", cur_host.c_str());
+  printf("\nnr_rostopic in this directory now uses these -- no flags needed.\n");
+  return true;
 }
 
 // Accepts a full URI, a host:port, or a bare host/IP -- so all of these agree:
@@ -414,23 +483,48 @@ static std::string resolve_master(std::string uri, int port) {
 }
 
 int main(int argc, char** argv) {
-  const char* env_master = std::getenv("ROS_MASTER_URI");
-  const char* env_host = std::getenv("ROS_HOSTNAME");
-  if (env_master) g_master = env_master;
-
   int port = 0;
+  std::string cli_master, cli_host, set_uri, set_host;
   std::vector<std::string> a;
   for (int i = 1; i < argc; ++i) {
     std::string s = argv[i];
-    if (s == "--master" && i + 1 < argc) { g_master = argv[++i]; continue; }
+    if (s == "--master" && i + 1 < argc) { cli_master = argv[++i]; continue; }
     if (s == "--port" && i + 1 < argc) { port = std::atoi(argv[++i]); continue; }
+    if (s == "--host" && i + 1 < argc) { cli_host = argv[++i]; continue; }
+    if (s == "--set_ros_master_uri" && i + 1 < argc) { set_uri = argv[++i]; continue; }
+    if (s == "--set_ros_hostname" && i + 1 < argc) { set_host = argv[++i]; continue; }
     a.push_back(s);
   }
-  g_master = resolve_master(g_master, port);
+
+  // --set_ros_master_uri / --set_ros_hostname: remember, then exit.
+  if (!set_uri.empty() || !set_host.empty()) {
+    if (!set_uri.empty()) set_uri = resolve_master(set_uri, port);  // normalise
+    return save_master_yaml(set_uri, set_host) ? 0 : 1;
+  }
   if (a.empty()) { usage(); return 0; }
 
+  // precedence: --master/--host > ./master.yaml > $ROS_MASTER_URI/$ROS_IP > default
+  std::string yaml_uri, yaml_host;
+  load_master_yaml(&yaml_uri, &yaml_host);
+  const char* env_master = std::getenv("ROS_MASTER_URI");
+  const char* env_host = std::getenv("ROS_HOSTNAME");
+  const char* env_ip = std::getenv("ROS_IP");
+
+  std::string origin = "the default";
+  if (!cli_master.empty())      { g_master = cli_master;  origin = "--master"; }
+  else if (!yaml_uri.empty())   { g_master = yaml_uri;    origin = "./master.yaml"; }
+  else if (env_master && *env_master) { g_master = env_master; origin = "$ROS_MASTER_URI"; }
+  g_master = resolve_master(g_master, port);
+  g_master_origin = origin;
+
+  std::string host = "localhost";
+  if (!cli_host.empty()) host = cli_host;
+  else if (!yaml_host.empty()) host = yaml_host;
+  else if (env_host && *env_host) host = env_host;
+  else if (env_ip && *env_ip) host = env_ip;
+
   set_master_uri(g_master);
-  set_hostname(env_host && *env_host ? env_host : "localhost");
+  set_hostname(host);
   set_log_level("warn");     // a CLI prints its data, not the library's chatter
 
   const std::string& cmd = a[0];
