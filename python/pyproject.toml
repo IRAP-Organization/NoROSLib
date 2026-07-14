@@ -27,5 +27,8 @@ nr_roscore = "irap_noroslib.roscore:main"
 Homepage = "https://github.com/IRAP-Organization/NoROSLib"
 Repository = "https://github.com/IRAP-Organization/NoROSLib"
 
+[tool.setuptools]
+license-files = ["LICENSE"]
+
 [tool.setuptools.packages.find]
 include = ["irap_noroslib*"]
