@@ -24,3 +24,5 @@
 #include "irap_noroslib/msgfile.hpp"
 #include "irap_noroslib/dynamic_node.hpp"
 #include "irap_noroslib/dynamic_actionlib.hpp"
+// ROS bag (v2.0) reading and writing -- what nr_rosbag runs on
+#include "irap_noroslib/bag.hpp"

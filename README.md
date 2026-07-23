@@ -556,6 +556,26 @@ Node names and their topics/services come from the master; pid, connections,
 liveness and shutdown come from calling each node's own slave API directly —
 exactly as `rosnode` does. It shares `./master.yaml` too.
 
+### Record and replay: `nr_rosbag`
+
+`nr_rosbag` is the real `rosbag` tool, with no ROS installed — `record`, `play`
+and `info`, writing genuine **v2.0 bags**:
+
+```bash
+nr_rosbag record -a -O run.bag              # record all topics (Ctrl-C to stop)
+nr_rosbag record /chatter /cmd_vel          # or named topics
+nr_rosbag record -a --split --duration 60   # roll to a new bag every 60s
+nr_rosbag info  run.bag                      # summarize a bag (or several)
+nr_rosbag play  run.bag other.bag            # replay, merged in time order
+nr_rosbag play -r 2 -l run.bag               # 2× speed, loop
+```
+
+`record` captures the exact wire bytes of **any** topic — even a custom type you
+have no `.msg` file for — because it saves the publisher's `message_definition`
+alongside, exactly as real `rosbag` does. The bags are the real format, so they
+open in genuine `rosbag info` / `rosbag play` / `rqt_bag`, and a bag recorded by
+real ROS plays back here. Verified both ways against ROS Noetic.
+
 ---
 
 ## Step 8 — Choose a message type

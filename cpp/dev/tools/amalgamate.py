@@ -31,10 +31,10 @@ HEADERS = ["message.hpp", "md5calc.h", "dynmsg.hpp",
            "actionlib_msgs.hpp", "std_srvs.hpp", "msgfile.hpp",
            "net_util.hpp", "xmlrpc.hpp", "tcpros.hpp",
            "udpros.hpp", "xmlrpc_client.hpp", "xmlrpc_server.hpp", "node.hpp",
-           "dynamic_node.hpp", "actionlib.hpp", "dynamic_actionlib.hpp"]
+           "dynamic_node.hpp", "actionlib.hpp", "dynamic_actionlib.hpp", "bag.hpp"]
 SOURCES = ["net_util.cpp", "xmlrpc.cpp", "tcpros.cpp", "udpros.cpp",
            "xmlrpc_client.cpp", "xmlrpc_server.cpp", "node.cpp",
-           "dynmsg.cpp", "msgfile.cpp"]
+           "dynmsg.cpp", "msgfile.cpp", "bag.cpp"]
 
 # System headers owned by platform.hpp (POSIX socket stack + Winsock). They must
 # NOT be hoisted to the top unconditionally -- platform.hpp includes them behind

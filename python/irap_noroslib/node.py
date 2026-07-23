@@ -362,6 +362,11 @@ class _Subscription:
         self.callback = callback
         self.msg_class = msg_class           # may be None (raw/wildcard)
         self.transport = transport           # "tcpros" or "udpros"
+        self.definition = ""                 # publisher's message_definition (for bags)
+        # Optional low-level recording hook. When set, every message is also
+        # delivered raw as (type_name, md5, definition, body_bytes) -- what a bag
+        # needs: the exact wire bytes plus the connection header, for ANY topic.
+        self.record_cb = None
         self._links = {}                     # publisher_uri -> thread
         self._lock = threading.Lock()
         self._running = True
@@ -478,6 +483,10 @@ class _Subscription:
                 real_md5 = resp.get("md5sum", md5)
                 if real_md5 != "*":
                     self.md5, self.type_name = real_md5, real_type
+                # Always keep the publisher's full definition (bags need it, even
+                # for built-in types whose class we already had).
+                if resp.get("message_definition"):
+                    self.definition = resp["message_definition"]
                 cls = self.msg_class or get_message_class(real_type)
                 if cls is None and resp.get("message_definition"):
                     # We have never seen this type -- but the publisher just handed
@@ -508,6 +517,11 @@ class _Subscription:
             body = tcpros.read_message(sock)
             if body is None:
                 return
+            if self.record_cb is not None:
+                try:
+                    self.record_cb(self.type_name, self.md5, self.definition, body)
+                except Exception as e:  # noqa -- recorder guard
+                    logwarn("record error on %s: %s" % (self.topic, e))
             if self.callback is None:
                 continue
             try:
@@ -867,6 +881,19 @@ class Subscriber:
             pass
         self._sub.close()
         node.subscriptions.pop(self._sub.topic, None)
+
+
+def subscribe_raw(topic, callback):
+    """Subscribe and receive each message raw, as
+    (type_name, md5, message_definition, body_bytes).
+
+    The low-level hook nr_rosbag records from: it discovers the type from the
+    publisher, so it captures the exact wire bytes -- and the connection header
+    needed to replay them -- for ANY topic, with no .msg file. Returns a
+    Subscriber; call .unregister() to stop."""
+    sub = Subscriber(topic, None, None)
+    sub._sub.record_cb = callback
+    return sub
 
 
 class Service:

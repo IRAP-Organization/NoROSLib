@@ -23,6 +23,7 @@ classifiers = [
 nr_rostopic = "irap_noroslib.rostopic:main"
 nr_rosservice = "irap_noroslib.rosservice:main"
 nr_rosnode = "irap_noroslib.rosnode:main"
+nr_rosbag = "irap_noroslib.rosbag:main"
 nr_roscore = "irap_noroslib.roscore:main"
 
 [project.urls]

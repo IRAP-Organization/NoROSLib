@@ -120,6 +120,7 @@ into each example — demonstrating exactly the integration described above.
 | `nr_rostopic.cpp` | `rostopic` with no ROS: list / echo / pub / info / hz / bw / find |
 | `nr_rosservice.cpp` | `rosservice` with no ROS: list / type / uri / info / find / args / call |
 | `nr_rosnode.cpp` | `rosnode` with no ROS: list / info / ping / machine / kill / cleanup |
+| `nr_rosbag.cpp` | `rosbag` with no ROS: record / play / info (real v2.0 bags, --split) |
 
 † `webcam_pub` and `webcam_sub` **require OpenCV** (`cv::VideoCapture` /
 `cv::imencode` / `cv::imshow`). **OpenCV is not a dependency of irap_noroslib** — the core
