@@ -597,6 +597,10 @@ class _ServiceServer:
 # --------------------------------------------------------------------------
 # node singleton
 # --------------------------------------------------------------------------
+# How often the keeper thread pings the master to notice it going / coming back.
+_MASTER_PING_PERIOD = 2.0
+
+
 class Node:
     def __init__(self, name, master_uri=None, host=None):
         self.name = name if name.startswith("/") else "/" + name
@@ -609,6 +613,16 @@ class Node:
         self.subscriptions = {}
         self.services = {}
         self._shutdown = threading.Event()
+        # Master-connection state. A node must survive the master going away and
+        # rejoin when it returns -- just like a real roscpp/rospy node. We never
+        # let a master call crash the user's node: registrations that fail are
+        # remembered and retried, and everything is re-registered when the master
+        # comes back (P2P TCPROS links themselves already survive independently).
+        self._reg_lock = threading.RLock()
+        self._master_up = True             # optimistic until proven otherwise
+        self._warned_lost = False
+        threading.Thread(target=self._master_keeper,
+                         name="irap_noroslib-master-keeper", daemon=True).start()
         loginfo("node %s: master=%s slave=%s"
                 % (self.name, self.master.uri, self.caller_api))
 
@@ -644,27 +658,122 @@ class Node:
             pass
 
     # -- registration ------------------------------------------------------
+    # Every registration goes through the master, which may be down. We never
+    # raise from these: the local pub/sub/service is created regardless, and the
+    # keeper thread (re)registers with the master whenever it is reachable. This
+    # is what lets a node start before roscore, or outlive a roscore restart.
     def advertise(self, topic, msg_class, latch=False):
         topic = _norm(topic)
         pub = _Publication(self, topic, msg_class, latch)
-        self.publications[topic] = pub
-        self.master.register_publisher(topic, pub.type_name, self.caller_api)
+        with self._reg_lock:
+            self.publications[topic] = pub
+            self._register_publisher(pub)
         return pub
 
     def subscribe(self, topic, type_name, md5, callback, msg_class, transport="tcpros"):
         topic = _norm(topic)
         sub = _Subscription(self, topic, type_name, md5, callback, msg_class, transport)
-        self.subscriptions[topic] = sub
-        pubs = self.master.register_subscriber(topic, type_name, self.caller_api)
-        sub.update_publishers(pubs)
+        with self._reg_lock:
+            self.subscriptions[topic] = sub
+            self._register_subscriber(sub)
         return sub
 
     def advertise_service(self, name, srv_class, handler):
         name = _norm(name)
         srv = _ServiceServer(self, name, srv_class, handler)
-        self.services[name] = srv
-        self.master.register_service(name, srv.uri, self.caller_api)
+        with self._reg_lock:
+            self.services[name] = srv
+            self._register_service(srv)
         return srv
+
+    # -- resilient master calls (never raise; report reachability) ---------
+    def _register_publisher(self, pub):
+        try:
+            self.master.register_publisher(pub.topic, pub.type_name, self.caller_api)
+            self._master_recovered()
+            return True
+        except (OSError, ConnectionError, MasterError) as e:
+            self._master_lost(e)
+            return False
+
+    def _register_subscriber(self, sub):
+        try:
+            pubs = self.master.register_subscriber(sub.topic, sub.type_name,
+                                                   self.caller_api)
+            sub.update_publishers(pubs)
+            self._master_recovered()
+            return True
+        except (OSError, ConnectionError, MasterError) as e:
+            self._master_lost(e)
+            return False
+
+    def _register_service(self, srv):
+        try:
+            self.master.register_service(srv.name, srv.uri, self.caller_api)
+            self._master_recovered()
+            return True
+        except (OSError, ConnectionError, MasterError) as e:
+            self._master_lost(e)
+            return False
+
+    def _master_lost(self, err):
+        """A master call just failed. Warn once per outage, and arm the keeper."""
+        with self._reg_lock:
+            self._master_up = False
+            if not self._warned_lost:
+                self._warned_lost = True
+                logwarn("lost the ROS master at %s (%s); the node keeps running and "
+                        "will re-register when it returns" % (self.master.uri, err))
+
+    def _master_recovered(self):
+        """A master call just succeeded. Announce recovery if we had been down."""
+        with self._reg_lock:
+            self._master_up = True
+            self._warned_lost = False
+
+    def _reregister_all(self):
+        """Re-announce every publisher, subscriber and service to the master.
+        Master registration is idempotent, so this is safe to repeat; it is how a
+        node rejoins a roscore that restarted (or started after the node did)."""
+        ok = True
+        with self._reg_lock:
+            pubs = list(self.publications.values())
+            subs = list(self.subscriptions.values())
+            srvs = list(self.services.values())
+        for p in pubs:
+            ok = self._register_publisher(p) and ok
+        for s in subs:
+            ok = self._register_subscriber(s) and ok
+        for sv in srvs:
+            ok = self._register_service(sv) and ok
+        return ok
+
+    def _master_keeper(self):
+        """Watch the master. While it is reachable, ping quietly; the moment it
+        comes back after an outage (or an initial registration that failed while
+        it was down), re-register everything so peers can find us again."""
+        while not self._shutdown.is_set():
+            self._shutdown.wait(_MASTER_PING_PERIOD)
+            if self._shutdown.is_set():
+                break
+            with self._reg_lock:
+                has_regs = bool(self.publications or self.subscriptions
+                                or self.services)
+                was_up = self._master_up
+            try:
+                self.master.get_pid()
+            except (OSError, ConnectionError, MasterError) as e:
+                self._master_lost(e)
+                continue
+            # Master answered. If it had been down, re-register everything so
+            # peers can find us again, then announce the recovery.
+            if not was_up:
+                if has_regs and self._reregister_all():
+                    loginfo("ROS master back online at %s -- re-registered %d "
+                            "publisher(s), %d subscriber(s), %d service(s)"
+                            % (self.master.uri, len(self.publications),
+                               len(self.subscriptions), len(self.services)))
+            self._master_recovered()
 
 
 _NODE = None

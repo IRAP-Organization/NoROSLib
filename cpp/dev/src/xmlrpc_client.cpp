@@ -99,6 +99,15 @@ static void collect_uris(const XmlValue& v, std::vector<std::string>* out) {
   for (const auto& e : v.arr) out->push_back(e.as_str());
 }
 
+bool master_get_pid(const std::string& master_uri, const std::string& caller_id,
+                    int* pid, std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getPid", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  if (pid) *pid = (int)value.as_int();
+  return true;
+}
+
 bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
                      std::vector<std::pair<std::string, std::string>>* topics,
                      std::string* err) {

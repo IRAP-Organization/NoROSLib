@@ -2385,6 +2385,12 @@ bool get_topic_types(const std::string& master_uri, const std::string& caller_id
                      std::vector<std::pair<std::string, std::string>>* topics,
                      std::string* err);
 
+// getPid -> the master's process id. A cheap liveness ping: it succeeds only
+// while the master is reachable, so it is how a node notices the master going
+// away and coming back. Returns false (with *err) if the master is unreachable.
+bool master_get_pid(const std::string& master_uri, const std::string& caller_id,
+                    int* pid, std::string* err);
+
 // getSystemState -> publishers / subscribers, each [(name, [node, ...]), ...].
 using GraphMap = std::vector<std::pair<std::string, std::vector<std::string>>>;
 bool get_system_state(const std::string& master_uri, const std::string& caller_id,
@@ -4348,6 +4354,15 @@ static void collect_uris(const XmlValue& v, std::vector<std::string>* out) {
   for (const auto& e : v.arr) out->push_back(e.as_str());
 }
 
+bool master_get_pid(const std::string& master_uri, const std::string& caller_id,
+                    int* pid, std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "getPid", {XmlValue::Str(caller_id)}, &value, err))
+    return false;
+  if (pid) *pid = (int)value.as_int();
+  return true;
+}
+
 bool get_topic_types(const std::string& master_uri, const std::string& caller_id,
                      std::vector<std::pair<std::string, std::string>>* topics,
                      std::string* err) {
@@ -5304,6 +5319,16 @@ class Node {
     caller_api_ = slave_.caller_api();
     std::signal(SIGINT, on_sigint);
     loginfo("node " + name_ + ": master=" + master_uri_ + " slave=" + caller_api_);
+    // Watch the master so the node survives it going away and rejoins when it
+    // returns -- exactly like a real roscpp/rospy node. P2P TCPROS links already
+    // outlive the master on their own; this re-registers us so peers can find us
+    // again after a roscore restart (or a roscore that starts after we do).
+    keeper_ = std::thread([this] { master_keeper(); });
+  }
+
+  ~Node() {
+    keeper_stop_.store(true);
+    if (keeper_.joinable()) keeper_.join();
   }
 
   const std::string& name() const { return name_; }
@@ -5321,10 +5346,44 @@ class Node {
       std::lock_guard<std::mutex> lk(mu_);
       pubs_[topic] = pub;
     }
-    std::vector<std::string> subs; std::string err;
-    if (!register_publisher(master_uri_, name_, topic, type, caller_api_, &subs, &err))
-      logerr("registerPublisher(" + topic + ") failed: " + err);
+    do_register_publisher(pub);
     return pub;
+  }
+
+  // Resilient master registrations. None of these throw or abort the node: if the
+  // master is down the local pub/sub/service still exists, and the keeper thread
+  // re-registers it when the master is reachable again.
+  bool do_register_publisher(const std::shared_ptr<Publication>& pub) {
+    std::vector<std::string> subs; std::string err;
+    if (register_publisher(master_uri_, name_, pub->topic(), pub->type(), caller_api_,
+                           &subs, &err)) {
+      master_recovered();
+      return true;
+    }
+    master_lost(err);
+    return false;
+  }
+
+  bool do_register_subscriber(const std::shared_ptr<Subscription>& sub) {
+    std::vector<std::string> pubs; std::string err;
+    if (register_subscriber(master_uri_, name_, sub->topic(), sub->type(), caller_api_,
+                            &pubs, &err)) {
+      sub->update_publishers(pubs);
+      master_recovered();
+      return true;
+    }
+    master_lost(err);
+    return false;
+  }
+
+  bool do_register_service(const std::shared_ptr<ServiceServer>& srv) {
+    std::string err;
+    if (register_service(master_uri_, name_, srv->name(), srv->uri(), caller_api_, &err)) {
+      master_recovered();
+      return true;
+    }
+    master_lost(err);
+    return false;
   }
 
   std::shared_ptr<Subscription> subscribe(const std::string& topic, const std::string& type,
@@ -5339,11 +5398,7 @@ class Node {
       std::lock_guard<std::mutex> lk(mu_);
       subs_[topic] = sub;
     }
-    std::vector<std::string> pubs; std::string err;
-    if (!register_subscriber(master_uri_, name_, topic, type, caller_api_, &pubs, &err))
-      logerr("registerSubscriber(" + topic + ") failed: " + err);
-    else
-      sub->update_publishers(pubs);
+    do_register_subscriber(sub);
     return sub;
   }
 
@@ -5377,9 +5432,7 @@ class Node {
       std::lock_guard<std::mutex> lk(mu_);
       services_[name] = srv;
     }
-    std::string err;
-    if (!register_service(master_uri_, name_, name, srv->uri(), caller_api_, &err))
-      logerr("registerService(" + name + ") failed: " + err);
+    do_register_service(srv);
     return srv;
   }
 
@@ -5454,6 +5507,7 @@ class Node {
   }
 
   void shutdown() {
+    keeper_stop_.store(true);          // stop re-registering as we tear down
     std::lock_guard<std::mutex> lk(mu_);
     std::string err;
     for (auto& kv : pubs_) {
@@ -5473,6 +5527,68 @@ class Node {
   }
 
  private:
+  void master_lost(const std::string& err) {
+    std::lock_guard<std::mutex> lk(state_mu_);
+    master_up_ = false;
+    if (!warned_lost_) {
+      warned_lost_ = true;
+      logwarn("lost the ROS master at " + master_uri_ + " (" + err + "); the node "
+              "keeps running and will re-register when it returns");
+    }
+  }
+
+  void master_recovered() {
+    std::lock_guard<std::mutex> lk(state_mu_);
+    master_up_ = true;
+    warned_lost_ = false;
+  }
+
+  // Re-announce every publisher, subscriber and service. Master registration is
+  // idempotent, so repeating it is safe; this is how a node rejoins a roscore
+  // that restarted (or started after the node did).
+  bool reregister_all() {
+    std::vector<std::shared_ptr<Publication>> pubs;
+    std::vector<std::shared_ptr<Subscription>> subs;
+    std::vector<std::shared_ptr<ServiceServer>> srvs;
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      for (auto& kv : pubs_) pubs.push_back(kv.second);
+      for (auto& kv : subs_) subs.push_back(kv.second);
+      for (auto& kv : services_) srvs.push_back(kv.second);
+    }
+    bool ok = true;
+    for (auto& p : pubs) ok = do_register_publisher(p) && ok;
+    for (auto& s : subs) ok = do_register_subscriber(s) && ok;
+    for (auto& s : srvs) ok = do_register_service(s) && ok;
+    return ok;
+  }
+
+  void master_keeper() {
+    while (!keeper_stop_.load() && !g_shutdown.load()) {
+      for (int i = 0; i < 20 && !keeper_stop_.load() && !g_shutdown.load(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));   // ~2s, responsive to stop
+      if (keeper_stop_.load() || g_shutdown.load()) break;
+      bool was_up, has_regs;
+      { std::lock_guard<std::mutex> lk(state_mu_); was_up = master_up_; }
+      { std::lock_guard<std::mutex> lk(mu_);
+        has_regs = !pubs_.empty() || !subs_.empty() || !services_.empty(); }
+      int pid = 0; std::string err;
+      if (!master_get_pid(master_uri_, name_, &pid, &err)) { master_lost(err); continue; }
+      // Master answered. If it had been down, re-register everything so peers can
+      // find us again, then announce the recovery.
+      if (!was_up) {
+        size_t np, ns, nk;
+        { std::lock_guard<std::mutex> lk(mu_);
+          np = pubs_.size(); ns = subs_.size(); nk = services_.size(); }
+        if (has_regs && reregister_all())
+          loginfo("ROS master back online at " + master_uri_ + " -- re-registered " +
+                  std::to_string(np) + " publisher(s), " + std::to_string(ns) +
+                  " subscriber(s), " + std::to_string(nk) + " service(s)");
+      }
+      master_recovered();
+    }
+  }
+
   XmlValue on_request_topic(const std::string& topic, const std::vector<XmlValue>& protocols) {
     std::shared_ptr<Publication> pub;
     {
@@ -5502,6 +5618,12 @@ class Node {
   std::map<std::string, std::shared_ptr<Publication>> pubs_;
   std::map<std::string, std::shared_ptr<Subscription>> subs_;
   std::map<std::string, std::shared_ptr<ServiceServer>> services_;
+  // Master-connection state, watched by the keeper thread.
+  std::mutex state_mu_;
+  bool master_up_ = true;             // optimistic until proven otherwise
+  bool warned_lost_ = false;
+  std::thread keeper_;
+  std::atomic<bool> keeper_stop_{false};
 };
 
 std::unique_ptr<Node> g_node;

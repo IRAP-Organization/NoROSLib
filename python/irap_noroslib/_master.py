@@ -55,6 +55,11 @@ class Master:
     def lookup_node(self, node_name):
         return self._call("lookupNode", node_name)
 
+    def get_pid(self):
+        """A cheap liveness ping. Returns the master's pid, or raises if the
+        master is unreachable -- used to detect the master coming and going."""
+        return self._call("getPid")
+
     # -- parameter server ---------------------------------------------------
     def get_param(self, key):
         return self._call("getParam", key)

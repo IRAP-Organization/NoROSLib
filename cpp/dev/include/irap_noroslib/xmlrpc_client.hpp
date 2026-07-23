@@ -22,6 +22,12 @@ bool get_topic_types(const std::string& master_uri, const std::string& caller_id
                      std::vector<std::pair<std::string, std::string>>* topics,
                      std::string* err);
 
+// getPid -> the master's process id. A cheap liveness ping: it succeeds only
+// while the master is reachable, so it is how a node notices the master going
+// away and coming back. Returns false (with *err) if the master is unreachable.
+bool master_get_pid(const std::string& master_uri, const std::string& caller_id,
+                    int* pid, std::string* err);
+
 // getSystemState -> publishers / subscribers, each [(name, [node, ...]), ...].
 using GraphMap = std::vector<std::pair<std::string, std::vector<std::string>>>;
 bool get_system_state(const std::string& master_uri, const std::string& caller_id,
