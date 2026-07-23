@@ -24,21 +24,112 @@ viewer a real ROS `rospy`/`cv_bridge` — and are not needed for anything else.)
 
 ## Command-line tools
 
-`pip install irap_noroslib` puts two commands on your PATH:
+`pip install irap_noroslib` puts the ROS command-line tools on your PATH — the
+real subcommands, flags and output, with no ROS installed:
 
 ```bash
-nr_roscore  --bind 127.0.0.1 --port 11311     # BE the ROS master
-nr_rostopic --master 127.0.0.1 --port 11311 echo /chatter
+nr_roscore  --bind 127.0.0.1 --port 11311      # BE the ROS master
+nr_rostopic echo /chatter                      # rostopic
+nr_rosservice call /add_two_ints "a: 3, b: 4"  # rosservice
+nr_rosnode  info /talker                        # rosnode
+nr_rosbag   record -a -O run.bag                # rosbag
 ```
 
-| | |
+| tool | what it is |
 |---|---|
 | `nr_roscore` | a standalone ROS master + parameter server. `--bind` = interface to listen on, `--port` = port, `--host` = what it advertises to nodes (defaults to `--bind` when that is a concrete IP). |
-| `nr_rostopic` | `rostopic`, with no ROS: `list` / `type` / `info` / `find` / `echo` / `hz` / `bw` / `pub`. `--master` takes a host, IP, `host:port` or full URI; `--port` sets the port. |
+| `nr_rostopic` | `rostopic`: `list` / `type` / `info` / `find` / `echo` / `hz` / `bw` / `pub`. |
+| `nr_rosservice` | `rosservice`: `list` / `type` / `uri` / `info` / `find` / `args` / `call`. |
+| `nr_rosnode` | `rosnode`: `list` / `info` / `ping` / `machine` / `kill` / `cleanup`. |
+| `nr_rosbag` | `rosbag`: `record` / `play` / `info`, over genuine v2.0 bags. |
 
-`nr_rostopic echo` decodes **any** topic — including a custom type you have no
-`.msg` file for, which real `rostopic echo` refuses to show. Both also run as
-`python3 -m irap_noroslib.roscore` / `python3 -m irap_noroslib.rostopic`.
+Every tool takes the same master options — `--master` (a host, IP, `host:port`
+or full URI) and `--port` — and each is also runnable as
+`python3 -m irap_noroslib.<name>` (e.g. `python3 -m irap_noroslib.rosbag`).
+
+**Set the master once, for every tool.** They share a `./master.yaml` in the
+current directory:
+
+```bash
+nr_rostopic --set_ros_master_uri http://192.168.1.50:11311 --set_ros_hostname 192.168.1.77
+nr_rostopic list          # no flags needed now — and neither do the others
+```
+
+The file wins over `$ROS_MASTER_URI` / `$ROS_IP` / `$ROS_HOSTNAME`, so a stale
+env var can't silently override what you saved; an explicit `--master`/`--host`
+still beats the file.
+
+### `nr_rostopic`
+
+```bash
+nr_rostopic list                       # what topics exist?
+nr_rostopic echo /chatter              # print messages (Ctrl-C to stop)
+nr_rostopic echo -n 5 /chatter         # print 5, then exit
+nr_rostopic type /chatter              # -> std_msgs/String
+nr_rostopic info /chatter              # who publishes / subscribes?
+nr_rostopic hz /chatter                # publishing rate
+nr_rostopic bw /chatter                # bandwidth
+nr_rostopic pub -r 10 /chatter std_msgs/String "data: hi"   # publish at 10 Hz
+nr_rostopic pub -1  /chatter std_msgs/String "data: hi"     # once
+```
+
+`echo` decodes **any** topic — including a custom type you have no `.msg` file
+for, which real `rostopic echo` refuses to show: a ROS publisher hands over the
+full message definition in the TCPROS handshake, so the type is rebuilt on the
+spot.
+
+### `nr_rosservice`
+
+```bash
+nr_rosservice list                     # active services
+nr_rosservice type /add_two_ints       # -> rospy_tutorials/AddTwoInts
+nr_rosservice uri  /add_two_ints       # its ROSRPC uri
+nr_rosservice info /add_two_ints       # node, uri, type, args
+nr_rosservice find rospy_tutorials/AddTwoInts
+nr_rosservice call /add_two_ints "a: 3, b: 4"     # -> sum: 7
+```
+
+`type` / `uri` / `info` / `find` work for **any** service — the master doesn't
+record a service's type, so `nr_rosservice` probes the running service directly,
+exactly as `rosservice` does. `args` / `call` need the request's field layout,
+which a service does **not** send over the wire: built-ins (`std_srvs`) and
+anything you loaded with `load_srv_file()` just work; for anything else, point
+it at the file with `-f my_pkg/srv/Type.srv`.
+
+### `nr_rosnode`
+
+```bash
+nr_rosnode list [-a]                    # active nodes (with -a: name + API uri)
+nr_rosnode info    /talker              # publications, subscriptions, services, pid, connections
+nr_rosnode ping -c 3 /talker            # test connectivity (round-trip time)
+nr_rosnode machine [HOST]               # list machines, or nodes on one machine
+nr_rosnode kill    /talker              # ask a node to shut down
+nr_rosnode cleanup                      # purge dead nodes' stale registrations
+```
+
+Node names and each node's topics/services come from the master; pid,
+connections, liveness and shutdown come from calling the node's own slave API
+directly — exactly as `rosnode` does.
+
+### `nr_rosbag`
+
+`record` / `play` / `info`, over genuine ROS **v2.0** bags — so they open in real
+`rosbag info` / `rosbag play` / `rqt_bag`, and a bag recorded by real ROS plays
+back here (verified both ways against Noetic).
+
+```bash
+nr_rosbag record -a -O run.bag              # record all topics (Ctrl-C to stop)
+nr_rosbag record /chatter /cmd_vel          # or named topics
+nr_rosbag record -a --split --duration 60   # roll to a new bag every 60s
+nr_rosbag record -a --split --size 100      # ...or every 100 MB
+nr_rosbag info  run.bag                      # summarize a bag (or several)
+nr_rosbag play  run.bag other.bag            # replay, merged in time order
+nr_rosbag play -r 2 -l run.bag               # 2× speed, loop forever
+```
+
+`record` captures the exact wire bytes of **any** topic — even a custom type you
+have no `.msg` file for — because it saves the publisher's `message_definition`
+in the bag, exactly as real `rosbag` does.
 
 ## Hello, topics
 
@@ -104,6 +195,9 @@ a local roscore). The core examples mirror the C++ ones one-for-one.
 | `udp_listener.py` | subscribe over UDPROS |
 | `nr_roscore.py` | run your own ROS master (roscore) |
 | `nr_rostopic` (`python3 -m irap_noroslib.rostopic`) | `rostopic` with no ROS: list / echo / pub / info / hz / bw / find |
+| `nr_rosservice` (`python3 -m irap_noroslib.rosservice`) | `rosservice` with no ROS: list / type / uri / info / find / args / call |
+| `nr_rosnode` (`python3 -m irap_noroslib.rosnode`) | `rosnode` with no ROS: list / info / ping / machine / kill / cleanup |
+| `nr_rosbag` (`python3 -m irap_noroslib.rosbag`) | `rosbag` with no ROS: record / play / info (real v2.0 bags, --split) |
 | `webcam_pub.py` | publish `sensor_msgs/Image` + `CompressedImage` from `/dev/video0` |
 | `webcam_sub.py` | subscribe those images and show them (`cv2.imshow`) |
 | `ros_image_viewer.py` | a real rospy node that `cv2.imshow`s the webcam feed |
