@@ -2127,6 +2127,13 @@ std::vector<MsgType> load_msg_files(const std::vector<std::string>& paths,
 MsgType get_msg_type(const std::string& full_type);      // throws if not registered
 bool has_msg_type(const std::string& full_type);
 
+/// A service type reconstructed from its registered Request/Response messages --
+/// so a service type discovered by probing (which yields only the name) can be
+/// turned back into request/response codecs, IF the .srv was seeded (std_srvs)
+/// or loaded with load_srv_file(). get_srv_type throws if unknown.
+SrvType get_srv_type(const std::string& full_type);
+bool has_srv_type(const std::string& full_type);
+
 /// Self-check with no ROS anywhere: recompute every built-in type's md5 from its
 /// own DEFINITION text and compare it with the hardcoded MD5 constant. Exercises
 /// the MD5 code, the .msg parser and the gentools md5 rules in one shot.
@@ -2603,6 +2610,13 @@ bool call_service(const std::string& name, const std::string& md5,
                   const std::vector<uint8_t>& request, std::vector<uint8_t>* response,
                   std::string* err);
 bool wait_for_service(const std::string& name, double timeout_s);
+
+// Ask a running service what it is, without calling it: send a probe handshake
+// (md5sum=* so it never mismatches) and return the reply header the server always
+// sends back -- 'type', 'md5sum', 'request_type', 'response_type'. The master
+// does NOT record any of this, so this is the only way to learn a service's type.
+bool probe_service(const std::string& name,
+                   std::map<std::string, std::string>* reply, std::string* err);
 }  // namespace detail
 
 // Poll the master until `name` is registered (timeout_s < 0 => forever).
@@ -5406,6 +5420,26 @@ class Node {
     return true;
   }
 
+  bool probe_service(const std::string& name,
+                     std::map<std::string, std::string>* reply, std::string* err) {
+    std::string url;
+    if (!lookup_service(master_uri_, name_, name, &url, err)) return false;
+    std::string host; uint16_t port = 0;
+    if (!parse_rosrpc(url, &host, &port)) { *err = "bad rosrpc uri: " + url; return false; }
+    int fd = tcp_connect(host, port);
+    if (fd < 0) { *err = "connect failed to " + url; return false; }
+    struct Guard { int f; ~Guard() { if (f >= 0) irap_noroslib::net_close(f); } } guard{fd};
+    TcprosHeader h;
+    h["callerid"] = name_;
+    h["service"] = name;
+    h["md5sum"] = "*";          // wildcard: the probe must never md5-mismatch
+    h["probe"] = "1";
+    if (!write_tcpros_header(fd, h)) { *err = "write header failed"; return false; }
+    if (!read_tcpros_header(fd, reply)) { *err = "read header failed"; return false; }
+    if (reply->count("error")) { *err = reply->at("error"); return false; }
+    return true;
+  }
+
   bool wait_for_service(const std::string& name, double timeout_s) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -5586,6 +5620,11 @@ bool call_service(const std::string& name, const std::string& md5,
 }
 bool wait_for_service(const std::string& name, double timeout_s) {
   return g_node ? g_node->wait_for_service(name, timeout_s) : false;
+}
+bool probe_service(const std::string& name,
+                   std::map<std::string, std::string>* reply, std::string* err) {
+  if (!g_node) { *err = "call init_node() first"; return false; }
+  return g_node->probe_service(name, reply, err);
 }
 }  // namespace detail
 
@@ -6556,6 +6595,19 @@ MsgType get_msg_type(const std::string& full_type) {
 
 bool has_msg_type(const std::string& full_type) {
   return Registry::global().has(full_type);
+}
+
+bool has_srv_type(const std::string& full_type) {
+  Registry& r = Registry::global();
+  return r.has(full_type + "Request") && r.has(full_type + "Response");
+}
+
+SrvType get_srv_type(const std::string& full_type) {
+  Registry& r = Registry::global();
+  MsgType req = r.get(full_type + "Request");
+  MsgType resp = r.get(full_type + "Response");
+  std::string md5 = md5_hex(req.md5_text() + resp.md5_text());
+  return SrvType(full_type, md5, req, resp);
 }
 
 int selftest_builtin_md5(std::vector<std::string>* failures) {

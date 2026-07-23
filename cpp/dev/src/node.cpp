@@ -721,6 +721,26 @@ class Node {
     return true;
   }
 
+  bool probe_service(const std::string& name,
+                     std::map<std::string, std::string>* reply, std::string* err) {
+    std::string url;
+    if (!lookup_service(master_uri_, name_, name, &url, err)) return false;
+    std::string host; uint16_t port = 0;
+    if (!parse_rosrpc(url, &host, &port)) { *err = "bad rosrpc uri: " + url; return false; }
+    int fd = tcp_connect(host, port);
+    if (fd < 0) { *err = "connect failed to " + url; return false; }
+    struct Guard { int f; ~Guard() { if (f >= 0) irap_noroslib::net_close(f); } } guard{fd};
+    TcprosHeader h;
+    h["callerid"] = name_;
+    h["service"] = name;
+    h["md5sum"] = "*";          // wildcard: the probe must never md5-mismatch
+    h["probe"] = "1";
+    if (!write_tcpros_header(fd, h)) { *err = "write header failed"; return false; }
+    if (!read_tcpros_header(fd, reply)) { *err = "read header failed"; return false; }
+    if (reply->count("error")) { *err = reply->at("error"); return false; }
+    return true;
+  }
+
   bool wait_for_service(const std::string& name, double timeout_s) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -901,6 +921,11 @@ bool call_service(const std::string& name, const std::string& md5,
 }
 bool wait_for_service(const std::string& name, double timeout_s) {
   return g_node ? g_node->wait_for_service(name, timeout_s) : false;
+}
+bool probe_service(const std::string& name,
+                   std::map<std::string, std::string>* reply, std::string* err) {
+  if (!g_node) { *err = "call init_node() first"; return false; }
+  return g_node->probe_service(name, reply, err);
 }
 }  // namespace detail
 

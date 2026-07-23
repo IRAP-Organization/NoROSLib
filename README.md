@@ -511,6 +511,33 @@ nr_rostopic pub -1  /chatter std_msgs/String "data: hi"     # once
 Full reference: [`nr_rostopic`](#nr_rostopic--rostopic-with-no-ros-installed) —
 including the one thing it does that **real `rostopic` cannot**.
 
+### Services, too: `nr_rosservice`
+
+`nr_rosservice` is the real `rosservice` tool, with no ROS installed — same
+subcommands, same flags. With a service running (say `/add_two_ints`):
+
+```bash
+nr_rosservice list                    # what services exist?
+nr_rosservice type /add_two_ints      # what type is it?   -> rospy_tutorials/AddTwoInts
+nr_rosservice uri  /add_two_ints      # its ROSRPC uri
+nr_rosservice info /add_two_ints      # node, uri, type, args
+nr_rosservice find rospy_tutorials/AddTwoInts   # services of a type
+nr_rosservice call /add_two_ints "a: 3, b: 4"   # call it   -> sum: 7
+```
+
+`type`/`uri`/`info`/`find` work for **any** service — the master doesn't record a
+service's type, so `nr_rosservice` probes the running service directly, exactly
+as `rosservice` does. `args`/`call` need the request's field layout, which a
+service does **not** send over the wire: built-ins (`std_srvs`) and anything you
+loaded with `load_srv_file()` just work; for anything else, point it at the file:
+
+```bash
+nr_rosservice call -f my_pkg/srv/AddTwoInts.srv /add_two_ints "a: 3, b: 4"
+```
+
+It shares `./master.yaml` with `nr_rostopic`, so `--set_ros_master_uri` set once
+serves both tools.
+
 ---
 
 ## Step 8 — Choose a message type

@@ -48,7 +48,20 @@ def define_service(full_type, request_text, response_text):
 
     Service.__name__ = str(full_type.split("/")[-1])
     Service.__qualname__ = Service.__name__
+    _services[full_type] = Service
     return Service
+
+
+# A by-type registry, so tools like nr_rosservice can turn a service type name
+# (discovered by probing a running service) back into its Request/Response
+# classes. Every define_service() -- built-ins here, and anything loaded from a
+# .srv file via load_srv_file() -- lands in it.
+_services = {}
+
+
+def get_service_class(full_type):
+    """The service class registered for `full_type`, or None if unknown."""
+    return _services.get(full_type)
 
 
 def _service_md5(full_type):

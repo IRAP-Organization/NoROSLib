@@ -20,13 +20,13 @@ error, so you never hit "Dropping connection" over an md5 you got wrong.
 from .node import (
     init_node, get_node, is_shutdown, signal_shutdown,
     set_master_uri, set_hostname, configure,
-    Publisher, Subscriber, Service, ServiceProxy, wait_for_service,
+    Publisher, Subscriber, Service, ServiceProxy, wait_for_service, probe_service,
     get_param, set_param, has_param, delete_param, search_param, get_param_names,
     Rate, spin, sleep, now,
     loginfo, logwarn, logerr, set_log_level,
 )
 from .message import define_message, get_message_class, Message
-from .srv import define_service, ServiceException
+from .srv import define_service, get_service_class, ServiceException
 from .actionlib import define_action, SimpleActionClient, SimpleActionServer
 from .msgfile import (
     load_msg_file, load_msg_files, load_srv_file, load_action_file, loaded_files,
@@ -40,10 +40,11 @@ __all__ = [
     "set_master_uri", "set_hostname", "configure",
     "get_param", "set_param", "has_param", "delete_param", "search_param", "get_param_names",
     "Publisher", "Subscriber", "Service", "ServiceProxy", "wait_for_service",
+    "probe_service",
     "Rate", "spin", "sleep", "now",
     "loginfo", "logwarn", "logerr", "set_log_level",
     "define_message", "get_message_class", "Message", "msg",
-    "define_service", "ServiceException", "srv",
+    "define_service", "get_service_class", "ServiceException", "srv",
     "define_action", "SimpleActionClient", "SimpleActionServer", "actionlib",
     "load_msg_file", "load_msg_files", "load_srv_file", "load_action_file",
     "loaded_files",

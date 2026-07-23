@@ -98,6 +98,13 @@ bool call_service(const std::string& name, const std::string& md5,
                   const std::vector<uint8_t>& request, std::vector<uint8_t>* response,
                   std::string* err);
 bool wait_for_service(const std::string& name, double timeout_s);
+
+// Ask a running service what it is, without calling it: send a probe handshake
+// (md5sum=* so it never mismatches) and return the reply header the server always
+// sends back -- 'type', 'md5sum', 'request_type', 'response_type'. The master
+// does NOT record any of this, so this is the only way to learn a service's type.
+bool probe_service(const std::string& name,
+                   std::map<std::string, std::string>* reply, std::string* err);
 }  // namespace detail
 
 // Poll the master until `name` is registered (timeout_s < 0 => forever).

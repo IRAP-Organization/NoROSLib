@@ -833,6 +833,37 @@ def _parse_rosrpc(url):
     return host, int(port)
 
 
+def probe_service(name):
+    """Ask a running service what it is, without calling it.
+
+    Connects, sends a probe handshake (md5sum=* so it never mismatches) and
+    reads the reply header the server always sends back. Returns a dict with
+    'type', 'md5sum', 'request_type', 'response_type' -- exactly what
+    `rosservice type` / `info` need, and which the master does NOT record.
+    Raises if the service is unknown or unreachable.
+    """
+    node = get_node()
+    name = _norm(name)
+    url = node.master.lookup_service(name)              # rosrpc://host:port
+    host, port = _parse_rosrpc(url)
+    sock = socket.create_connection((host, port), timeout=5.0)
+    tcpros.set_nodelay(sock)
+    try:
+        hdr = tcpros.make_service_client_header(node.name, name, "*")
+        hdr["probe"] = "1"
+        tcpros.write_header(sock, hdr)
+        reply = tcpros.read_header(sock)
+        if "error" in reply:
+            raise ServiceException("service %s rejected probe: %s"
+                                   % (name, reply["error"]))
+        return reply
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
 def wait_for_service(name, timeout=None):
     """Block until a service is registered with the master (or timeout).
 

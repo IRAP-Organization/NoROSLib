@@ -106,6 +106,13 @@ std::vector<MsgType> load_msg_files(const std::vector<std::string>& paths,
 MsgType get_msg_type(const std::string& full_type);      // throws if not registered
 bool has_msg_type(const std::string& full_type);
 
+/// A service type reconstructed from its registered Request/Response messages --
+/// so a service type discovered by probing (which yields only the name) can be
+/// turned back into request/response codecs, IF the .srv was seeded (std_srvs)
+/// or loaded with load_srv_file(). get_srv_type throws if unknown.
+SrvType get_srv_type(const std::string& full_type);
+bool has_srv_type(const std::string& full_type);
+
 /// Self-check with no ROS anywhere: recompute every built-in type's md5 from its
 /// own DEFINITION text and compare it with the hardcoded MD5 constant. Exercises
 /// the MD5 code, the .msg parser and the gentools md5 rules in one shot.

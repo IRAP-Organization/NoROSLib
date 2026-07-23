@@ -280,6 +280,19 @@ bool has_msg_type(const std::string& full_type) {
   return Registry::global().has(full_type);
 }
 
+bool has_srv_type(const std::string& full_type) {
+  Registry& r = Registry::global();
+  return r.has(full_type + "Request") && r.has(full_type + "Response");
+}
+
+SrvType get_srv_type(const std::string& full_type) {
+  Registry& r = Registry::global();
+  MsgType req = r.get(full_type + "Request");
+  MsgType resp = r.get(full_type + "Response");
+  std::string md5 = md5_hex(req.md5_text() + resp.md5_text());
+  return SrvType(full_type, md5, req, resp);
+}
+
 int selftest_builtin_md5(std::vector<std::string>* failures) {
   Registry& r = Registry::global();
   int n = 0;
