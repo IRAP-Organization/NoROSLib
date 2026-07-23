@@ -538,6 +538,24 @@ nr_rosservice call -f my_pkg/srv/AddTwoInts.srv /add_two_ints "a: 3, b: 4"
 It shares `./master.yaml` with `nr_rostopic`, so `--set_ros_master_uri` set once
 serves both tools.
 
+### Nodes, too: `nr_rosnode`
+
+`nr_rosnode` is the real `rosnode` tool, with no ROS installed — same
+subcommands, same flags:
+
+```bash
+nr_rosnode list [-a]            # active nodes (with -a: name + API uri)
+nr_rosnode info    /talker      # publications, subscriptions, services, pid, connections
+nr_rosnode ping -c 3 /talker    # test connectivity (round-trip time)
+nr_rosnode machine [HOST]       # list machines, or nodes on one machine
+nr_rosnode kill    /talker      # ask a node to shut down
+nr_rosnode cleanup              # purge dead nodes' stale registrations from the master
+```
+
+Node names and their topics/services come from the master; pid, connections,
+liveness and shutdown come from calling each node's own slave API directly —
+exactly as `rosnode` does. It shares `./master.yaml` too.
+
 ---
 
 ## Step 8 — Choose a message type

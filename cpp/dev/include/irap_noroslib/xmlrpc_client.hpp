@@ -22,6 +22,12 @@ bool get_topic_types(const std::string& master_uri, const std::string& caller_id
                      std::vector<std::pair<std::string, std::string>>* topics,
                      std::string* err);
 
+// lookupNode -> the node's slave-API URI (http://host:port). Returns false
+// (with *err) if the master knows no such node. Used by nr_rosnode to reach a
+// node's own slave API for pid / connections / liveness / shutdown.
+bool lookup_node(const std::string& master_uri, const std::string& caller_id,
+                 const std::string& node_name, std::string* node_uri, std::string* err);
+
 // getPid -> the master's process id. A cheap liveness ping: it succeeds only
 // while the master is reachable, so it is how a node notices the master going
 // away and coming back. Returns false (with *err) if the master is unreachable.

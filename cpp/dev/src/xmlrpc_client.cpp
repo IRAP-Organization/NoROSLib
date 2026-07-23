@@ -99,6 +99,16 @@ static void collect_uris(const XmlValue& v, std::vector<std::string>* out) {
   for (const auto& e : v.arr) out->push_back(e.as_str());
 }
 
+bool lookup_node(const std::string& master_uri, const std::string& caller_id,
+                 const std::string& node_name, std::string* node_uri, std::string* err) {
+  XmlValue value;
+  if (!ros_call(master_uri, "lookupNode",
+                {XmlValue::Str(caller_id), XmlValue::Str(node_name)}, &value, err))
+    return false;
+  *node_uri = value.as_str();
+  return true;
+}
+
 bool master_get_pid(const std::string& master_uri, const std::string& caller_id,
                     int* pid, std::string* err) {
   XmlValue value;

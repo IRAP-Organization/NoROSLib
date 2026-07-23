@@ -119,6 +119,7 @@ into each example — demonstrating exactly the integration described above.
 | `nr_roscore.cpp` | run your own ROS master (roscore) + `/rosout` aggregator |
 | `nr_rostopic.cpp` | `rostopic` with no ROS: list / echo / pub / info / hz / bw / find |
 | `nr_rosservice.cpp` | `rosservice` with no ROS: list / type / uri / info / find / args / call |
+| `nr_rosnode.cpp` | `rosnode` with no ROS: list / info / ping / machine / kill / cleanup |
 
 † `webcam_pub` and `webcam_sub` **require OpenCV** (`cv::VideoCapture` /
 `cv::imencode` / `cv::imshow`). **OpenCV is not a dependency of irap_noroslib** — the core
